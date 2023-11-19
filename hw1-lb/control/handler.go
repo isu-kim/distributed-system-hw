@@ -57,5 +57,13 @@ func (h *Handler) tempHandler(conn net.Conn) {
 
 		// Echo the data back to the client
 		_, _ = conn.Write(buffer[:n])
+
+		// Parse json from user's transmission
+		userPayload, err := jsonParser(buffer[:n])
+		if err != nil {
+			log.Printf("%s Could not parse Json: %v", conn.RemoteAddr(), err)
+		} else {
+			log.Printf("%s Command Type: %d", conn.RemoteAddr(), userPayload)
+		}
 	}
 }

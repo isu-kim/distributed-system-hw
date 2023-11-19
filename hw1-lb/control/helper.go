@@ -1,11 +1,18 @@
 package control
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"strconv"
+	"strings"
+)
+
+const (
+	cmdTypeRegister   = 1
+	cmdTypeUnregister = 2
 )
 
 // envParseAddress parses environment variables and retrieves address to listen control server on
@@ -32,4 +39,25 @@ func envParseAddress() string {
 
 	// Return 0.0.0.0:8080 format IP listen address
 	return fmt.Sprintf("%s:%d", ipv4Addr.String(), portVal)
+}
+
+// jsonParser decodes raw bytes into JSON object
+func jsonParser(bytes []byte) (map[string]string, error) {
+	var ret map[string]string
+	err := json.Unmarshal(bytes, &ret)
+	return ret, err
+}
+
+// parseCommandType parses command type (register, unregister) from a map
+func parseCommandType(mapData map[string]string) (uint8, error) {
+	cmd := mapData["cmd"]
+	cmd = strings.ToLower(cmd)
+
+	if strings.Compare(cmd, "register") == 0 { // Register command
+		return cmdTypeRegister, nil
+	} else if strings.Compare(cmd, "unregister") == 0 { // Unregister command
+		return cmdTypeUnregister, nil
+	} else {
+		return 0, nil
+	}
 }
