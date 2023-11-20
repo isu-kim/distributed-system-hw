@@ -34,16 +34,6 @@ func main() {
 		sig := <-stopper
 		log.Printf("Received %v, Sending unregister command...", sig)
 
-		// Start TCP server
-		server, err := net.Listen("tcp", fmt.Sprintf("%s:%d", listenAddr, listenPort))
-		if err != nil {
-			log.Fatalf("Error starting server: %s\n", err)
-			return
-		}
-		defer server.Close()
-
-		log.Printf("Server listening on %s:%d\n", listenAddr, listenPort)
-
 		// Send initialization message to LB_ADDR:LB_PORT
 		initMessage := map[string]interface{}{
 			"cmd":      "unregister",

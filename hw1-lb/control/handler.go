@@ -1,7 +1,6 @@
 package control
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"lb/common"
@@ -118,42 +117,10 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		switch commandType {
 		case common.CmdTypeRegister:
 			err := h.processRegister(conn, userPayload)
-			if err != nil {
-				log.Printf("%s Controller could not add a new replica [src=%s]: %v",
-					common.ColoredError, conn.RemoteAddr(), err)
-
-				// Registration failed, send acknowledgment with error message to the client
-				failureResponse := map[string]string{"ack": "failed", "msg": err.Error()}
-				failureResponseJSON, err := json.Marshal(failureResponse)
-				if err != nil {
-					log.Printf("%s Controller Error encoding failure response: %v\n",
-						common.ColoredError, err)
-					return
-				}
-
-				_, err = conn.Write(failureResponseJSON)
-				if err != nil {
-					log.Printf("%s Error writing failure response to client: %v\n",
-						common.ColoredError, err)
-					return
-				}
-			} else {
-				// Registration successful, send acknowledgment to the client
-				successResponse := map[string]string{"ack": "successful"}
-				successResponseJSON, err := json.Marshal(successResponse)
-				if err != nil {
-					log.Printf("%s Error encoding success response: %v\n",
-						common.ColoredError, err)
-					return
-				}
-
-				_, err = conn.Write(successResponseJSON)
-				if err != nil {
-					log.Printf("%s Error writing success response to client: %v\n",
-						common.ColoredError, err)
-					return
-				}
-			}
+			returnResult(conn, err, commandType)
+		case common.CmdTypeUnregister:
+			err := h.processUnregister(conn, userPayload)
+			returnResult(conn, err, commandType)
 		default:
 			log.Printf("%s Controller received unknown command type [src=%s]",
 				common.ColoredWarn, conn.RemoteAddr())
@@ -222,6 +189,62 @@ func (h *Handler) processRegister(conn net.Conn, mapData map[string]interface{})
 	newReplica.StartHealthCheckRoutine()
 
 	return nil
+}
+
+// processUnregister processes an unregister command
+func (h *Handler) processUnregister(conn net.Conn, mapData map[string]interface{}) error {
+	// Parse raw IP address from the remote Addr, simply retrieve the part before port binding
+	addrParts := strings.Split(conn.RemoteAddr().String(), ":")
+	if len(addrParts) != 2 {
+		msg := fmt.Sprintf("could not parse remote address: %s", conn.RemoteAddr().String())
+		return errors.New(msg)
+	}
+
+	// Parse management command received
+	protocol, port, err := parseManagementCommand(mapData)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse management command: %v", err)
+		return errors.New(msg)
+	}
+
+	// Check if service already exists
+	targetService := h.getExistingService(port, protocol)
+	if targetService == nil {
+		msg := fmt.Sprintf("unregistered service %s/%d",
+			misc.ConvertProtoToString(protocol), port)
+		return errors.New(msg)
+	} else {
+		// Check if replica exists within the service
+		var targetReplica *Replica
+		replicaFound := false
+		for _, replica := range targetService.replicas {
+			if replica.IsExactSpec(addrParts[0], port, protocol) {
+				replicaFound = true
+				targetReplica = replica
+			}
+		}
+
+		// The replica does not exist
+		if !replicaFound {
+			msg := fmt.Sprintf("unregistered server %s/%s:%d",
+				misc.ConvertProtoToString(protocol), addrParts[0], port)
+			return errors.New(msg)
+		}
+
+		// Stop health check by force
+		targetReplica.StopHealthCheck()
+
+		// Remove replica from target service
+		// If false, this means that the target replica does not exist
+		ok := targetService.removeReplica(*targetReplica)
+		if !ok {
+			msg := fmt.Sprintf("could not remove server %s/%s:%d",
+				misc.ConvertProtoToString(protocol), addrParts[0], port)
+			return errors.New(msg)
+		} else {
+			return nil
+		}
+	}
 }
 
 // getExistingService retrieves existing service by given address and port with protocol information
