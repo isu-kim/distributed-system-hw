@@ -161,14 +161,14 @@ func main() {
 
 			// Read the response for health check
 			buffer := make([]byte, 1024)
-			n, err := lbConn.Read(buffer)
+			_, err = lbConn.Read(buffer)
 			if err != nil {
 				log.Printf("Error reading from connection during health check: %s\n", err)
 				return
 			}
 
-			receivedMessage := string(buffer[:n])
-			log.Printf("Received health check response: %s, sent back response\n", receivedMessage)
+			//receivedMessage := string(buffer[:n])
+			//log.Printf("Received health check response: %s, sent back response\n", receivedMessage)
 		}
 	}()
 

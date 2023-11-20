@@ -3,11 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -23,7 +27,7 @@ func main() {
 	lbAddr := os.Getenv("LB_ADDR")
 	lbPort := os.Getenv("LB_PORT")
 
-	log.Printf("Starting up simple udp echo server")
+	log.Printf("Starting up simple API echo server")
 	log.Printf("Use CTRL+C (SIGINT) to send unregister command")
 
 	stopper := make(chan os.Signal)
@@ -37,7 +41,7 @@ func main() {
 		// Send initialization message to LB_ADDR:LB_PORT
 		initMessage := map[string]interface{}{
 			"cmd":      "unregister",
-			"protocol": "udp",
+			"protocol": "tcp",
 			"port":     listenPort,
 		}
 		initMessageJSON, err := json.Marshal(initMessage)
@@ -103,23 +107,10 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// Start udp server
-	server, err := net.ListenUDP("udp", &net.UDPAddr{
-		IP:   net.ParseIP(listenAddr),
-		Port: listenPort,
-	})
-	if err != nil {
-		log.Fatalf("Error starting server: %s\n", err)
-		return
-	}
-	defer server.Close()
-
-	log.Printf("Server listening on %s:%d\n", listenAddr, listenPort)
-
 	// Send initialization message to LB_ADDR:LB_PORT
 	initMessage := map[string]interface{}{
 		"cmd":      "register",
-		"protocol": "udp",
+		"protocol": "tcp",
 		"port":     listenPort,
 	}
 	initMessageJSON, err := json.Marshal(initMessage)
@@ -175,29 +166,51 @@ func main() {
 		}
 	}()
 
-	// Accept and handle incoming connections
-	for {
-		handleClient(server)
+	serverAddr := fmt.Sprintf("%s:%d", listenAddr, listenPort)
+	log.Printf("Starting server on %s...\n", serverAddr)
+
+	http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
+		// Read the request body
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading request body", http.StatusInternalServerError)
+			return
+		}
+
+		// Get the IP address of the server machine
+		ip, err := getServerIP()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error getting server IP: %s", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Print the received payload and server IP address
+		log.Printf("Received payload: %s\n", string(body))
+		log.Printf("Server IP address: %s\n", ip)
+
+		// Send the payload and IP address back to the client
+		w.Write([]byte(fmt.Sprintf("Received payload: %s\nServer IP address: %s\n", body, ip)))
+	})
+
+	err = http.ListenAndServe(serverAddr, nil)
+	if err != nil {
+		log.Fatalf("Error starting server: %s\n", err)
 	}
+
 }
 
-func handleClient(conn *net.UDPConn) {
-	buffer := make([]byte, 1024)
-
-	n, addr, err := conn.ReadFromUDP(buffer)
+// getServerIP returns the IP address of the server machine
+func getServerIP() (string, error) {
+	cmd := exec.Command("ifconfig", "eth0")
+	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("Error reading from UDP client: %s\n", err)
-		return
+		return "", err
 	}
 
-	fmt.Printf("Received %d bytes from %s: %s\n", n, addr, string(buffer[:n]))
+	// Extract the IP address from the ifconfig output
+	ipStartIndex := strings.Index(string(output), "inet ") + 5
+	ipEndIndex := ipStartIndex + strings.Index(string(output[ipStartIndex:]), " ")
+	ip := string(output[ipStartIndex:ipEndIndex])
 
-	// You can add your own logic to process the received data here
-
-	// Echo back to the client (optional)
-	_, err = conn.WriteToUDP(buffer[:n], addr)
-	if err != nil {
-		log.Printf("Error writing to UDP client: %s\n", err)
-		return
-	}
+	return ip, nil
 }
