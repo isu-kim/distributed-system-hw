@@ -165,6 +165,8 @@ func (h *Handler) processRegister(conn net.Conn, mapData map[string]interface{})
 // isExistingService checks if given port and protocol was being served by load balancer before
 func (h *Handler) isExistingService(port int, proto uint8) bool {
 	// This might be a critical section when multiple goroutines check for this port, use mutex to resolve this.
+
+	log.Printf("isExistingService called, port:%d proto:%d, child server len:%d", port, proto, len(h.childServers))
 	h.lock.Lock()
 	for _, childServer := range h.childServers {
 		if childServer.IsSpec(port, proto) {
@@ -200,7 +202,7 @@ func (h *Handler) startServiceServer(port int, proto uint8) error {
 
 	// Add a new wait group for child server
 	h.childServersWg.Add(1)
-	newServer.DoMainLoop(&h.childServersWg, relay.TempRelay)
+	go newServer.DoMainLoop(&h.childServersWg, relay.TempRelay)
 
 	// Lock child servers, this is critical section
 	// We are adding new server into child servers
@@ -215,7 +217,7 @@ func (h *Handler) startServiceServer(port int, proto uint8) error {
 }
 
 // stopServiceServer stops an existing server for a given protocol and port
-// @todo implement a garbate collector!
+// @todo implement a garbage collector!
 func (h *Handler) stopServiceServer(port int, proto uint8) error {
 	return nil
 }

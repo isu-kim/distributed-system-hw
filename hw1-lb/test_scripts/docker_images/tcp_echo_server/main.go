@@ -61,31 +61,33 @@ func main() {
 
 	// Start a goroutine for health check
 	go func() {
-		healthCheckMessage := map[string]interface{}{
-			"cmd": "hello",
-		}
-		healthCheckJSON, err := json.Marshal(healthCheckMessage)
-		if err != nil {
-			log.Printf("Error marshaling health check JSON: %s\n", err)
-			return
-		}
+		for {
+			healthCheckMessage := map[string]interface{}{
+				"ack": "hello",
+			}
+			healthCheckJSON, err := json.Marshal(healthCheckMessage)
+			if err != nil {
+				log.Printf("Error marshaling health check JSON: %s\n", err)
+				return
+			}
 
-		_, err = lbConn.Write(healthCheckJSON)
-		if err != nil {
-			log.Printf("Error sending health check message: %s\n", err)
-			return
-		}
+			_, err = lbConn.Write(healthCheckJSON)
+			if err != nil {
+				log.Printf("Error sending health check message: %s\n", err)
+				return
+			}
 
-		// Read the response for health check
-		buffer := make([]byte, 1024)
-		n, err := lbConn.Read(buffer)
-		if err != nil {
-			log.Printf("Error reading from connection during health check: %s\n", err)
-			return
-		}
+			// Read the response for health check
+			buffer := make([]byte, 1024)
+			n, err := lbConn.Read(buffer)
+			if err != nil {
+				log.Printf("Error reading from connection during health check: %s\n", err)
+				return
+			}
 
-		receivedMessage := string(buffer[:n])
-		fmt.Printf("Received health check response: %s\n", receivedMessage)
+			receivedMessage := string(buffer[:n])
+			fmt.Printf("Received health check response: %s, sent back response\n", receivedMessage)
+		}
 	}()
 
 	// Accept and handle incoming connections

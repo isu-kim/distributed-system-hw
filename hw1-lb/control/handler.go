@@ -68,9 +68,6 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		log.Printf("%s Controller received %s [src=%s]",
 			common.ColoredInfo, buffer[:n], conn.RemoteAddr())
 
-		// Echo the data back to the client
-		_, _ = conn.Write(buffer[:n])
-
 		// Parse json from user's transmission
 		userPayload, err := jsonParser(buffer[:n])
 		if err != nil {

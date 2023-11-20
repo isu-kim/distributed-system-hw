@@ -75,14 +75,21 @@ func (s *replica) StartHealthCheckRoutine() {
 			}
 
 			// Reached max health check failures
-			if curFailure > maxFailure {
+			if curFailure >= maxFailure {
 				log.Printf("%s Max health check failure count reached for %s/%s:%d (%d/%d)",
 					common.ColoredError, misc.ConvertProtoToString(s.proto), s.addr, s.port, curFailure, maxFailure)
+				break
 			}
 
 			// Sleep duration until next health check
 			time.Sleep(time.Duration(healthCheckInterval) * time.Second)
 		}
+
+		log.Printf("%s Controller triggered garbage collection for %s/%s:%d due to max health check failure",
+			common.ColoredInfo, misc.ConvertProtoToString(s.proto), s.addr, s.port)
+
+		// @todo trigger garbage collection for the given service
+		// perhaps create a new channel for garbage collection?
 	}()
 }
 
@@ -91,6 +98,21 @@ func (s *replica) StartHealthCheckRoutine() {
 // If the response was something else, the replica will be regarded as a failed health check
 // Also, this will have a 5 sec timeout until the controller considers the replica to be "dead"
 func performHealthCheck(conn net.Conn) error {
+	// Retrieve HEALTH_CHECK_TIMEOUT for max time out for health check
+	// If not set, defaults to 5 seconds
+	timeout := 5
+	maxTimeoutString := os.Getenv("HEALTH_CHECK_TIMEOUT")
+	if len(maxTimeoutString) == 0 {
+		timeout = 5
+	} else {
+		val, err := strconv.Atoi(maxTimeoutString)
+		if err != nil {
+			timeout = 5
+		} else {
+			timeout = val
+		}
+	}
+
 	// Define the health check request
 	request := map[string]string{"cmd": "hello"}
 	requestJSON, err := json.Marshal(request)
@@ -106,7 +128,7 @@ func performHealthCheck(conn net.Conn) error {
 	}
 
 	// Set a deadline for reading
-	err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	err = conn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
 	if err != nil {
 		return errors.New(fmt.Sprintf("error setting read deadline: %v", err))
 	}
@@ -117,7 +139,8 @@ func performHealthCheck(conn net.Conn) error {
 	if err != nil {
 		// Check if the error is due to a timeout
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			return errors.New("health check timed out (5s)")
+			msg := fmt.Sprintf("health check timed out (%ds)", timeout)
+			return errors.New(msg)
 		}
 		msg := fmt.Sprintf("error reading health check response: %v", err)
 		return errors.New(msg)

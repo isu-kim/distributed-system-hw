@@ -87,5 +87,6 @@ func (s *Server) DoMainLoop(wg *sync.WaitGroup, handler ConnectionHandler) {
 
 // IsSpec returns if given spec was the one running this Server
 func (s *Server) IsSpec(port int, proto uint8) bool {
+	log.Printf("server port: %d, proto %d ///// given port %d, proto %d", s.port, s.proto, port, proto)
 	return s.port == port && s.proto == proto
 }
