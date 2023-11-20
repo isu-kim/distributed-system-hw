@@ -6,3 +6,8 @@ var (
 	ColoredError string
 	ColoredInfo  string
 )
+
+const (
+	TypeProtoTCP = 1
+	TypeProtoUDP = 2
+)

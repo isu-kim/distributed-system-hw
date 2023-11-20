@@ -3,4 +3,7 @@ RUN apt-get update && apt-get install net-tools -y
 RUN mkdir app/
 WORKDIR app
 COPY . .
-CMD ["go run main.go"]
+RUN go mod init tcp-server
+RUN go get
+RUN go build
+CMD ["./tcp-server"]

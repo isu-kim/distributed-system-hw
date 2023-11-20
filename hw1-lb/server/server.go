@@ -6,6 +6,7 @@ import (
 	"lb/common"
 	"log"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -13,7 +14,8 @@ import (
 type Server struct {
 	listener net.Listener
 	address  string
-	proto    string
+	port     int
+	proto    uint8
 	alias    string
 }
 
@@ -21,18 +23,28 @@ type Server struct {
 type ConnectionHandler func(conn net.Conn)
 
 // New creates a new Server
-func New(addr string, proto string, alias string) (*Server, error) {
-	listener, err := net.Listen(proto, addr)
+func New(addr string, port int, proto string, alias string) (*Server, error) {
+	listenAddr := fmt.Sprintf("%s:%d", addr, port)
+	listener, err := net.Listen(proto, listenAddr)
 	if err != nil {
-		msg := fmt.Sprintf("could not start server %s/%s", proto, addr)
+		msg := fmt.Sprintf("could not start server %s/%s: %v", proto, addr, err)
 		return nil, errors.New(msg)
+	}
+
+	// Convert proto from string to uint8
+	var protoConverted uint8
+	if strings.Compare(proto, "tcp") == 0 {
+		protoConverted = common.TypeProtoTCP
+	} else if strings.Compare(proto, "udp") == 0 {
+		protoConverted = common.TypeProtoUDP
 	}
 
 	// Return Server
 	return &Server{
 		listener: listener,
 		address:  addr,
-		proto:    proto,
+		port:     port,
+		proto:    protoConverted,
 		alias:    alias,
 	}, nil
 }
@@ -71,4 +83,9 @@ func (s *Server) DoMainLoop(wg *sync.WaitGroup, handler ConnectionHandler) {
 			common.ColoredInfo, s.alias, s.proto, s.address, conn.RemoteAddr())
 		go handler(conn)
 	}
+}
+
+// IsSpec returns if given spec was the one running this Server
+func (s *Server) IsSpec(port int, proto uint8) bool {
+	return s.port == port && s.proto == proto
 }

@@ -26,3 +26,29 @@ func InitColoredLogs() {
 	common.ColoredError = color.New(color.FgHiRed).Sprint("[ERROR]")
 	common.ColoredInfo = color.New(color.FgHiGreen).Sprintf("[INFO]")
 }
+
+// AreMapsEqual checks if two maps are equal
+func AreMapsEqual(map1 map[string]string, map2 map[string]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+	for key, value1 := range map1 {
+		value2, ok := map2[key]
+		if !ok || value1 != value2 {
+			return false
+		}
+	}
+	return true
+}
+
+// ConvertProtoToString converts a proto as string
+func ConvertProtoToString(proto uint8) string {
+	switch proto {
+	case common.TypeProtoTCP:
+		return "tcp"
+	case common.TypeProtoUDP:
+		return "udp"
+	default:
+		return "unknown"
+	}
+}
