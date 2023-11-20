@@ -10,20 +10,22 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
-// replica represents a single replica for load balancing
-type replica struct {
+// Replica represents a single replica for load balancing
+type Replica struct {
 	addr            string
 	port            int
 	proto           uint8
 	lastHealthCheck time.Time
 	healthCheckConn net.Conn
+	ownerService    *service
 }
 
 // StartHealthCheckRoutine starts loop for health check for given replica forever
-func (r *replica) StartHealthCheckRoutine() {
+func (r *Replica) StartHealthCheckRoutine() {
 	go func() {
 		curFailure := 0
 		maxFailure := 5
@@ -69,9 +71,8 @@ func (r *replica) StartHealthCheckRoutine() {
 				// Health check successfully finished, reset failure count and set last health check time
 				curFailure = 0
 				r.lastHealthCheck = time.Now()
-				log.Printf("%s Health check finished for %s/%s:%d (%d/%d), last reported: %s",
-					common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port, curFailure, maxFailure,
-					r.lastHealthCheck.String())
+				log.Printf("%s Health check finished for %s/%s:%d",
+					common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port)
 			}
 
 			// Reached max health check failures
@@ -85,11 +86,17 @@ func (r *replica) StartHealthCheckRoutine() {
 			time.Sleep(time.Duration(healthCheckInterval) * time.Second)
 		}
 
-		log.Printf("%s Controller triggered garbage collection for %s/%s:%d due to max health check failure",
-			common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port)
+		// The health check connection is messed up, close
+		err := closeConnectionWithTimeout(r.healthCheckConn, 3)
+		if err != nil {
+			log.Printf("%s Controller is unable to close socket connection to %s/%s:%d: %v",
+				common.ColoredWarn, misc.ConvertProtoToString(r.proto), r.addr, r.port, err)
+		}
 
-		// @todo trigger garbage collection for the given service
-		// perhaps create a new channel for garbage collection?
+		// Remove this replica from the owner service
+		log.Printf("%s Removing replica %s/%s:%d from service due to reaching max health check retrial",
+			common.ColoredWarn, misc.ConvertProtoToString(r.proto), r.addr, r.port)
+		r.ownerService.removeReplica(*r)
 	}()
 }
 
@@ -164,12 +171,44 @@ func performHealthCheck(conn net.Conn) error {
 	return nil
 }
 
+// Equals returns if target Replica is same as current Replica
+func (r *Replica) Equals(target Replica) bool {
+	return r.IsExactSpec(target.addr, target.port, target.proto)
+}
+
 // IsSpec returns if given spec was the one running this replica
-func (r *replica) IsSpec(port int, proto uint8) bool {
+func (r *Replica) IsSpec(port int, proto uint8) bool {
 	return r.port == port && r.proto == proto
 }
 
+// IsExactSpec returns if given spec is exactly the replica that was requested
+func (r *Replica) IsExactSpec(addr string, port int, proto uint8) bool {
+	return r.port == port && r.proto == proto && strings.Compare(addr, r.addr) == 0
+}
+
 // GetInfo returns a string describing the listen address
-func (r *replica) GetInfo() string {
+func (r *Replica) GetInfo() string {
 	return fmt.Sprintf("%s:%d", r.addr, r.port)
+}
+
+func closeConnectionWithTimeout(conn net.Conn, timeout time.Duration) error {
+	// Set a deadline for the connection to complete the close operation
+	err := conn.SetDeadline(time.Now().Add(timeout))
+	if err != nil {
+		return err
+	}
+
+	// Perform the close operation in a goroutine
+	ch := make(chan error, 1)
+	go func() {
+		ch <- conn.Close()
+	}()
+
+	// Wait for the close operation to complete or for the deadline to expire
+	select {
+	case <-time.After(timeout):
+		return errors.New("close operation timed out")
+	case err := <-ch:
+		return err
+	}
 }

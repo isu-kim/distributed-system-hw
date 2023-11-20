@@ -1,11 +1,19 @@
 package control
 
 import (
+	"errors"
+	"fmt"
 	"lb/common"
+	"lb/misc"
 	"lb/server"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"strings"
 	"sync"
+	"syscall"
+	"time"
 )
 
 // Handler represents a single control server
@@ -13,11 +21,21 @@ type Handler struct {
 	server         *server.Server
 	addr           string
 	lock           sync.Mutex
-	replicas       []*replica
 	childServers   []*server.Server
 	healthCheckWg  sync.WaitGroup
 	childServersWg sync.WaitGroup
+	services       []*service
 }
+
+// garbageCollectionRequest represents a single garbage collection request
+// this is meant to trigger cleaning up unused servers (services) which do not have any replicas
+type garbageCollectionRequest struct {
+	addr  string
+	port  int
+	proto uint8
+}
+
+var gcChannel chan garbageCollectionRequest
 
 // New creates a new control server handler
 func New() *Handler {
@@ -34,15 +52,18 @@ func New() *Handler {
 		server:         controlServer,
 		addr:           addr,
 		lock:           sync.Mutex{},
-		replicas:       make([]*replica, 0),
 		childServers:   make([]*server.Server, 0),
 		healthCheckWg:  sync.WaitGroup{},
 		childServersWg: sync.WaitGroup{},
+		services:       make([]*service, 0),
 	}
 }
 
 // Run starts listening control server
 func (h *Handler) Run(wg *sync.WaitGroup) error {
+	h.setupSignalHandling()
+	gcChannel = make(chan garbageCollectionRequest)
+	// h.garbageCollectorRoutine()
 	h.server.DoMainLoop(wg, h.tempHandler)
 	return nil
 }
@@ -51,6 +72,79 @@ func (h *Handler) Run(wg *sync.WaitGroup) error {
 func (h *Handler) Stop() error {
 	return h.server.Close()
 }
+
+func (h *Handler) setupSignalHandling() {
+	stopper := make(chan os.Signal)
+	signal.Notify(stopper, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	go func() {
+		sig := <-stopper
+		log.Printf("%s Controller received signal: %v. Shutting down...", common.ColoredInfo, sig)
+		os.Exit(0)
+	}()
+}
+
+/*
+// garbageCollectorRoutine performs garbage collection on services which do not have any replicas in it
+// This will listen for signals coming from health check failures in replicas
+func (h *Handler) garbageCollectorRoutine() {
+	log.Printf("%s Garbage collector started", common.ColoredInfo)
+	go func() {
+		for {
+			select {
+			case data := <-gcChannel:
+				log.Printf("%s Garbage collector received cleanup request for %s/%s:%d",
+					common.ColoredInfo, misc.ConvertProtoToString(data.proto), data.addr, data.port)
+				h.performGarbageCollection(data)
+			}
+		}
+	}()
+}
+
+// performGarbageCollection performs garbage collection on unused replica cleanup
+func (h *Handler) performGarbageCollection(gc garbageCollectionRequest) {
+	// Create a new slice to store replicas that do not match the criteria
+	var updatedReplicas []*replica
+
+	// Remove replica from replica collection
+	h.lock.Lock()
+	// Iterate over the existing replicas
+	for _, r := range h.replicas {
+		// Check if the replica matches the specified criteria
+		if !r.IsExactSpec(gc.addr, gc.port, gc.proto) {
+			// If it doesn't match, add it to the updatedReplicas slice
+			updatedReplicas = append(updatedReplicas, r)
+		}
+	}
+
+	// Update the replicas in the ReplicaHolder with the filtered slice
+	h.replicas = updatedReplicas
+	h.lock.Unlock()
+
+	// Check if the service related to this replica needs to be destroyed
+	var updatedServers []*server.Server
+	for _, s := range h.childServers {
+		if !s.IsSpec(gc.port, gc.proto) {
+			updatedServers = append(updatedServers, s)
+		} else {
+			// Decrement replica counts, if there are not zero replica, terminate server
+			s.DecrementReplica()
+			if !(s.GetReplicaCount() > 0) {
+				log.Printf("%s Controller stopping service %s/%d since there are no replicas attached",
+					common.ColoredInfo, misc.ConvertProtoToString(gc.proto), gc.port)
+				err := s.Close()
+				if err != nil {
+					log.Printf("%s Controller failed to stop server %s/%d: %v",
+						common.ColoredWarn, misc.ConvertProtoToString(gc.proto), gc.port, err)
+				}
+			} else {
+				log.Printf("%s Controller updated service %s/%d, replica count=%d",
+					common.ColoredInfo, misc.ConvertProtoToString(gc.proto), gc.port, s.GetReplicaCount())
+			}
+		}
+	}
+}
+
+*/
 
 // tempHandler is a temp connection handler function for connection callbacks
 func (h *Handler) tempHandler(conn net.Conn) {
@@ -97,4 +191,149 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		log.Printf("%s Controller received command %d [src=%s]",
 			common.ColoredInfo, commandType, conn.RemoteAddr())
 	}
+}
+
+// processRegister processes a register command
+func (h *Handler) processRegister(conn net.Conn, mapData map[string]interface{}) error {
+	// Parse raw IP address from the remote Addr, simply retrieve the part before port binding
+	addrParts := strings.Split(conn.RemoteAddr().String(), ":")
+	if len(addrParts) != 2 {
+		msg := fmt.Sprintf("could not parse remote address: %s", conn.RemoteAddr().String())
+		return errors.New(msg)
+	}
+
+	// Parse management command received
+	protocol, port, err := parseManagementCommand(mapData)
+	if err != nil {
+		msg := fmt.Sprintf("could not parse management command: %v", err)
+		return errors.New(msg)
+	}
+
+	// Check if service already exists
+	targetService := h.getExistingService(port, protocol)
+	if targetService != nil {
+		if targetService.isLive {
+			// This means we are registering a new replica for the service
+			log.Printf("%s Controller: %s/%d is existing service, adding a new replica (total %d availble replicas)",
+				common.ColoredInfo, misc.ConvertProtoToString(protocol), port, len(targetService.getReplicas()))
+		} else {
+			// This means that the service has no replica, thus had its server terminated, we need to restart server
+			log.Printf("%s Controller: %s/%d is existing service, however had its server terminated, restarting server",
+				common.ColoredInfo, misc.ConvertProtoToString(protocol), port)
+			targetService, err = h.restartService(port, protocol, targetService)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		// This means we are registering a new service
+		log.Printf("%s Controller: %s/%d is a new service",
+			common.ColoredInfo, misc.ConvertProtoToString(protocol), port)
+
+		// Create a new service
+		targetService, err = h.createNewService(port, protocol)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Create a new replica
+	newReplica := Replica{
+		addr:            addrParts[0],
+		port:            port,
+		proto:           protocol,
+		healthCheckConn: conn,
+		lastHealthCheck: time.Time{},
+		ownerService:    targetService,
+	}
+
+	// Now add replica to the service, also start health checking the replica
+	targetService.addReplica(&newReplica)
+	newReplica.StartHealthCheckRoutine()
+
+	return nil
+}
+
+// getExistingService retrieves existing service by given address and port with protocol information
+// If no such service with given spec was found, nil will be returned
+func (h *Handler) getExistingService(port int, proto uint8) *service {
+	for _, s := range h.services {
+		if s.isGivenSpec(port, proto) {
+			return s
+		}
+	}
+
+	return nil
+}
+
+// createNewService creates a new service with given port and protocol
+// This will also start up the Server for that service as well
+func (h *Handler) createNewService(port int, proto uint8) (*service, error) {
+	// Retrieve LB_LISTEN_ADDR as load balancer listen address
+	lbIPAddr := os.Getenv("LB_LISTEN_ADDR")
+	if len(lbIPAddr) == 0 {
+		log.Printf("%s $LB_LISTEN_ADDR not set, defaulting to 0.0.0.0", common.ColoredWarn)
+		lbIPAddr = "0.0.0.0"
+	}
+
+	// Convert protocol as string
+	protoString := misc.ConvertProtoToString(proto)
+
+	// Start listening a new server
+	newServer, err := server.New(lbIPAddr, port, protoString, "")
+	if err != nil {
+		log.Printf("%s Controller failed to start a new service at %s/%s:%d: %v",
+			common.ColoredError, protoString, lbIPAddr, port, err)
+		msg := fmt.Sprintf("failed to start server at %s/%s:%d: %v",
+			protoString, lbIPAddr, port, err)
+		return nil, errors.New(msg)
+	}
+
+	// Create a new service information
+	newService := service{
+		addr:               lbIPAddr,
+		port:               port,
+		proto:              proto,
+		server:             newServer,
+		replicas:           make([]*Replica, 0),
+		lock:               sync.Mutex{},
+		lastScheduledIndex: 0,
+		isLive:             true,
+	}
+
+	// Register service to server
+	// This is a critical section, so lock with mutex
+	h.lock.Lock()
+	h.services = append(h.services, &newService)
+	h.lock.Unlock()
+
+	// Everything went on properly
+	return &newService, nil
+}
+
+// restartService will restart the server for the service
+func (h *Handler) restartService(port int, proto uint8, existingService *service) (*service, error) {
+	// Retrieve LB_LISTEN_ADDR as load balancer listen address
+	lbIPAddr := os.Getenv("LB_LISTEN_ADDR")
+	if len(lbIPAddr) == 0 {
+		log.Printf("%s $LB_LISTEN_ADDR not set, defaulting to 0.0.0.0", common.ColoredWarn)
+		lbIPAddr = "0.0.0.0"
+	}
+
+	// Convert protocol as string
+	protoString := misc.ConvertProtoToString(proto)
+
+	// Start listening a new server
+	newServer, err := server.New(lbIPAddr, port, protoString, "")
+	if err != nil {
+		log.Printf("%s Controller failed to start a new service at %s/%s:%d: %v",
+			common.ColoredError, protoString, lbIPAddr, port, err)
+		msg := fmt.Sprintf("failed to start server at %s/%s:%d: %v",
+			protoString, lbIPAddr, port, err)
+		return nil, errors.New(msg)
+	}
+
+	existingService.isLive = true
+	existingService.server = newServer
+	return existingService, nil
 }

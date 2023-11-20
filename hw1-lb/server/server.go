@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"lb/common"
+	"lb/misc"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
 )
@@ -17,6 +20,7 @@ type Server struct {
 	port     int
 	proto    uint8
 	alias    string
+	stopper  chan os.Signal
 }
 
 // ConnectionHandler is a callback function for handling connections
@@ -46,11 +50,13 @@ func New(addr string, port int, proto string, alias string) (*Server, error) {
 		port:     port,
 		proto:    protoConverted,
 		alias:    alias,
+		stopper:  make(chan os.Signal),
 	}, nil
 }
 
 // Close stops listening a Server
 func (s *Server) Close() error {
+	signal.Notify(s.stopper, os.Interrupt)
 	return s.listener.Close()
 }
 
@@ -58,30 +64,37 @@ func (s *Server) Close() error {
 // The sync.WaitGroup will tell this goroutine when to stop listening
 // The ConnectionHandler will tell which function to call upon a connection
 func (s *Server) DoMainLoop(wg *sync.WaitGroup, handler ConnectionHandler) {
-	defer wg.Done()
-
 	for {
-		// Accept a new connection
-		conn, err := s.listener.Accept()
-		if err != nil {
-			// Check if the error is due to the listener being closed
-			_, ok := err.(net.Error)
-			if ok {
-				log.Printf("%s \"%s(%s/%s)\" Temporary error accepting connection: %v",
+		select {
+		case <-s.stopper:
+			log.Printf("%s Server %s/%s:%d received interrupt",
+				common.ColoredInfo, misc.ConvertProtoToString(s.proto), s.address, s.port)
+			return
+		default:
+			// Accept a new connection
+			conn, err := s.listener.Accept()
+			if err != nil {
+				// Check if the error is due to the listener being closed
+				_, ok := err.(net.Error)
+				if ok {
+
+					//log.Printf("%s \"%s(%s/%s)\" Temporary error accepting connection: %v, val",
+					//	common.ColoredWarn, s.alias, misc.ConvertProtoToString(s.proto), s.address, err)
+					continue
+
+				}
+
+				// Listener is closed or other non-temporary error
+				log.Printf("%s \"%s(%s/%s)\" Error accepting connection: %v",
 					common.ColoredWarn, s.alias, s.proto, s.address, err)
-				continue
+				return
 			}
 
-			// Listener is closed or other non-temporary error
-			log.Printf("%s \"%s(%s/%s)\" Error accepting connection: %v",
-				common.ColoredWarn, s.alias, s.proto, s.address, err)
-			return
+			// Handle the connection in a new goroutine
+			log.Printf("%s \"%s(%s/%s)\" Request from: %s",
+				common.ColoredInfo, s.alias, misc.ConvertProtoToString(s.proto), s.address, conn.RemoteAddr())
+			go handler(conn)
 		}
-
-		// Handle the connection in a new goroutine
-		log.Printf("%s \"%s(%s/%s)\" Request from: %s",
-			common.ColoredInfo, s.alias, s.proto, s.address, conn.RemoteAddr())
-		go handler(conn)
 	}
 }
 
