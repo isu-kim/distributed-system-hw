@@ -2,6 +2,7 @@ package control
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -42,15 +43,21 @@ func envParseAddress() string {
 }
 
 // jsonParser decodes raw bytes into JSON object
-func jsonParser(bytes []byte) (map[string]string, error) {
-	var ret map[string]string
+func jsonParser(bytes []byte) (map[string]interface{}, error) {
+	var ret map[string]interface{}
 	err := json.Unmarshal(bytes, &ret)
 	return ret, err
 }
 
 // parseCommandType parses command type (register, unregister) from a map
-func parseCommandType(mapData map[string]string) (uint8, error) {
-	cmd := mapData["cmd"]
+func parseCommandType(mapData map[string]interface{}) (uint8, error) {
+	// Try parsing value of "cmd" as string
+	if mapData["cmd"] == nil {
+		msg := fmt.Sprintf("Invalid cmd input: %v", mapData["cmd"])
+		return 0, errors.New(msg)
+	}
+
+	cmd := mapData["cmd"].(string)
 	cmd = strings.ToLower(cmd)
 
 	if strings.Compare(cmd, "register") == 0 { // Register command

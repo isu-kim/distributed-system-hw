@@ -62,8 +62,14 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		userPayload, err := jsonParser(buffer[:n])
 		if err != nil {
 			log.Printf("%s Could not parse Json: %v", conn.RemoteAddr(), err)
-		} else {
-			log.Printf("%s Command Type: %d", conn.RemoteAddr(), userPayload)
 		}
+
+		// Parse command type
+		commandType, err := parseCommandType(userPayload)
+		if err != nil {
+			log.Printf("%s Could not parse command type: %v", conn.RemoteAddr(), err)
+		}
+
+		log.Printf("%s Command Type: %d", conn.RemoteAddr(), commandType)
 	}
 }
