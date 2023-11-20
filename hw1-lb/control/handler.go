@@ -297,6 +297,9 @@ func (h *Handler) createNewService(port int, proto uint8) (*service, error) {
 		isLive:             true,
 	}
 
+	// Set callback function for LB as doLB
+	go newServer.DoMainLoop(nil, newService.doLB)
+
 	// Register service to server
 	// This is a critical section, so lock with mutex
 	h.lock.Lock()
@@ -328,6 +331,9 @@ func (h *Handler) restartService(port int, proto uint8, existingService *service
 			protoString, lbIPAddr, port, err)
 		return nil, errors.New(msg)
 	}
+
+	// Set callback function for LB as doLB
+	go newServer.DoMainLoop(nil, existingService.doLB)
 
 	existingService.isLive = true
 	existingService.server = newServer

@@ -1,10 +1,12 @@
 package control
 
 import (
+	"fmt"
 	"lb/common"
 	"lb/misc"
 	"lb/server"
 	"log"
+	"net"
 	"strings"
 	"sync"
 )
@@ -101,4 +103,48 @@ func (s *service) shouldBeTerminated() bool {
 // terminateService terminates the server running for this service
 func (s *service) terminateService() error {
 	return s.server.Close()
+}
+
+// doLB picks a replica and sends the traffic from conn to the target replica server
+// We can of course ignore race conditions and do a bit more dangerous connections, but
+// for stability, we are going to use mutex and avoid any possible race conditions
+// When autoTry was set on, the function will pick next replica when current replica fails
+func (s *service) doLB(srcConn net.Conn) {
+
+	// The replicas that are possible to be scheduled
+	replicas := s.getReplicas()
+	replicaLen := len(replicas)
+
+	log.Printf("REPLICAS: %v (%d)", replicas, replicaLen)
+
+	s.lock.Lock()
+	// Perform simple round-robin algorithm
+	// If this was the last element or exceeds it, send it to the beginning
+	// Golang supports short circuit evaluation, meaning that if we only had single replica for a single server
+	// This will fire up the first part of evaluation expression and set the if statement as true
+	// If we explicitly checked if our replica count was 0, there will be additional cost for evaluating
+	// whether the replica count was 0. So this will be effective and faster.
+	if s.lastScheduledIndex+1 == replicaLen || s.lastScheduledIndex+1 > replicaLen {
+		s.lastScheduledIndex = 0
+	} else {
+		s.lastScheduledIndex = s.lastScheduledIndex + 1
+	}
+
+	// The target replica that was selected
+	targetReplica := replicas[s.lastScheduledIndex]
+	targetAddr := fmt.Sprintf("%s:%d", targetReplica.addr, targetReplica.port)
+	targetProto := misc.ConvertProtoToString(targetReplica.proto)
+
+	s.lock.Unlock()
+
+	// For debugging purpose
+	log.Printf("%s Forwarding %s -> %s proto=%s / index=%d",
+		common.ColoredInfo, srcConn.RemoteAddr(), targetAddr, targetProto, s.lastScheduledIndex)
+
+	// Forward traffic from srcConn to targetAddr
+	err := forwardTraffic(srcConn, targetAddr, targetProto)
+	if err != nil {
+		log.Printf("%s Forwarding %s -> %s proto=%s / index=%d failed: %v ",
+			common.ColoredWarn, srcConn.RemoteAddr(), targetAddr, targetProto, s.lastScheduledIndex, err)
+	}
 }
