@@ -136,7 +136,9 @@ func (s *Server) DoMainLoop(wg *sync.WaitGroup, handler ConnectionHandler) {
 					common.ColoredInfo, misc.ConvertProtoToString(s.proto), s.address, s.port)
 				return
 			default:
-				handler(s.udpConn)
+				if s.udpConn != nil {
+					handler(s.udpConn)
+				}
 			}
 		}
 	}
