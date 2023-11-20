@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"lb/common"
 	"log"
 	"net"
 	"os"
@@ -11,9 +12,11 @@ import (
 	"strings"
 )
 
+// Predefined types of commands
 const (
 	cmdTypeRegister   = 1
 	cmdTypeUnregister = 2
+	cmdTypeHello      = 3
 )
 
 // envParseAddress parses environment variables and retrieves address to listen control server on
@@ -24,8 +27,9 @@ func envParseAddress() string {
 	envAddr := os.Getenv("LB_LISTEN_ADDR")
 	ipv4Addr, _, err := net.ParseCIDR(envAddr)
 	if err != nil {
-		log.Printf("Could not parse environment variable $LB_LISTEN_ADDR in IP address format: %v", err)
-		log.Printf("Defaulting back to 0.0.0.0")
+		log.Printf("%s Could not parse environment variable $LB_LISTEN_ADDR in IP address format: %v",
+			common.ColoredWarn, err)
+		log.Printf("%s Defaulting listen IP to 0.0.0.0", common.ColoredWarn)
 		ipv4Addr = net.IPv4(0, 0, 0, 0) // 0.0.0.0
 	}
 
@@ -33,8 +37,8 @@ func envParseAddress() string {
 	envPort := os.Getenv("LB_LISTEN_PORT")
 	portVal, err := strconv.Atoi(envPort)
 	if err != nil {
-		log.Printf("Could not parse environment variable $LB_LISTEN_PORT as integer: %v", err)
-		log.Printf("Defaulting back to 8080")
+		log.Printf("%s Could not parse environment variable $LB_LISTEN_PORT as integer: %v", common.ColoredWarn, err)
+		log.Printf("%s Defaulting back to 8080", common.ColoredWarn)
 		portVal = 8080
 	}
 
@@ -64,7 +68,33 @@ func parseCommandType(mapData map[string]interface{}) (uint8, error) {
 		return cmdTypeRegister, nil
 	} else if strings.Compare(cmd, "unregister") == 0 { // Unregister command
 		return cmdTypeUnregister, nil
+	} else if strings.Compare(cmd, "hello") == 0 { // Hello command (health check)
+		return cmdTypeHello, nil
 	} else {
 		return 0, nil
 	}
+}
+
+// parseManagementCommand parses management commands which are reigster and unregister
+func parseManagementCommand(mapData map[string]interface{}) (string, int, error) {
+	// Check if protocol key is present
+	protocol, ok := mapData["protocol"].(string)
+	if !ok {
+		return "", 0, errors.New("missing or invalid 'protocol' key")
+	}
+
+	// Check if port key is present
+	// We are intentionally converting into float since float is not possible port number
+	// so that we can compare if the user's input was actually a float later by comparing its integer value
+	port, ok := mapData["port"].(float64)
+	if !ok {
+		return "", 0, errors.New("missing or invalid 'port' key")
+	}
+
+	// Check if port is a positive integer in the valid port range
+	if port <= 0 || port > 65535 || port != float64(int(port)) {
+		return "", 0, errors.New("invalid port, must be a positive integer in the range [1, 65535]")
+	}
+
+	return protocol, int(port), nil
 }

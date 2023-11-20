@@ -1,6 +1,7 @@
 package control
 
 import (
+	"lb/common"
 	"lb/server"
 	"log"
 	"net"
@@ -19,7 +20,7 @@ func New() *Handler {
 	addr := envParseAddress()
 	controlServer, err := server.New(addr, "tcp", "controller")
 	if err != nil {
-		log.Fatalf("Could not start control server: %v", err)
+		log.Fatalf("%s Could not start control server: %v", common.ColoredError, err)
 		return nil
 	}
 
@@ -48,12 +49,14 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		// Read data from the connection
 		n, err := conn.Read(buffer)
 		if err != nil {
-			log.Printf("%s Error reading: %v", conn.RemoteAddr(), err)
+			log.Printf("%s Controller: Src=%s error reading: %v",
+				common.ColoredWarn, conn.RemoteAddr(), err)
 			return
 		}
 
 		// Print the received data
-		log.Printf("%s Sent: %s", conn.RemoteAddr(), buffer[:n])
+		log.Printf("%s Controller received %s [src=%s]",
+			common.ColoredInfo, buffer[:n], conn.RemoteAddr())
 
 		// Echo the data back to the client
 		_, _ = conn.Write(buffer[:n])
@@ -61,15 +64,18 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		// Parse json from user's transmission
 		userPayload, err := jsonParser(buffer[:n])
 		if err != nil {
-			log.Printf("%s Could not parse Json: %v", conn.RemoteAddr(), err)
+			log.Printf("%s Controller could not parse JSON [src=%s]: %v",
+				common.ColoredWarn, conn.RemoteAddr(), err)
 		}
 
 		// Parse command type
 		commandType, err := parseCommandType(userPayload)
 		if err != nil {
-			log.Printf("%s Could not parse command type: %v", conn.RemoteAddr(), err)
+			log.Printf("%s Controller could not parse command type [src=%s]: %v",
+				common.ColoredWarn, conn.RemoteAddr(), err)
 		}
 
-		log.Printf("%s Command Type: %d", conn.RemoteAddr(), commandType)
+		log.Printf("%s Controller received command %d [src=%s]",
+			common.ColoredInfo, commandType, conn.RemoteAddr())
 	}
 }

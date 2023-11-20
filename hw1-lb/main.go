@@ -1,6 +1,7 @@
 package main
 
 import (
+	"lb/common"
 	"lb/control"
 	"lb/misc"
 	"log"
@@ -12,6 +13,9 @@ func main() {
 	// Print our load balancer's logo
 	misc.PrintLBLogo()
 
+	// Initialize colors
+	misc.InitColoredLogs()
+
 	// Create a sync.WaitGroup for determining all goroutine's termiantion
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -20,7 +24,7 @@ func main() {
 	controller := control.New()
 	err := controller.Run(&wg)
 	if err != nil {
-		log.Fatalf("Could not run control server: %v", err)
+		log.Fatalf("%s Could not run control server: %v", common.ColoredError, err)
 		return
 	}
 }
