@@ -138,8 +138,20 @@ func (h *Handler) processRegister(conn net.Conn, mapData map[string]interface{})
 	// Check if lb shall create a new server or not
 	if h.isExistingService(port, protocol) {
 		// This means that current registration is just adding a new replica to service
-		log.Printf("%s Controller: %s/%d is existing service",
+		log.Printf("%s Controller: %s/%d is existing service, adding a new replica...",
 			common.ColoredInfo, misc.ConvertProtoToString(protocol), port)
+		log.Printf("%s Controller: %s/%d has following replica: ",
+			common.ColoredInfo, misc.ConvertProtoToString(protocol), port)
+
+		// Print replicas of this service
+		fmt.Printf("\t")
+		for _, r := range h.replicas {
+			if r.IsSpec(port, protocol) {
+				fmt.Printf("%s, ", r.GetInfo())
+			}
+		}
+		fmt.Printf("\n")
+
 	} else {
 		// This means that current registration is a new service, so fire up a new server
 		log.Printf("%s Controller: %s/%d is a new service",
@@ -170,6 +182,7 @@ func (h *Handler) isExistingService(port int, proto uint8) bool {
 	h.lock.Lock()
 	for _, childServer := range h.childServers {
 		if childServer.IsSpec(port, proto) {
+			h.lock.Unlock()
 			return true
 		}
 	}

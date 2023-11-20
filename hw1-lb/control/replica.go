@@ -23,7 +23,7 @@ type replica struct {
 }
 
 // StartHealthCheckRoutine starts loop for health check for given replica forever
-func (s *replica) StartHealthCheckRoutine() {
+func (r *replica) StartHealthCheckRoutine() {
 	go func() {
 		curFailure := 0
 		maxFailure := 5
@@ -58,26 +58,26 @@ func (s *replica) StartHealthCheckRoutine() {
 		}
 
 		for {
-			err := performHealthCheck(s.healthCheckConn)
+			err := performHealthCheck(r.healthCheckConn)
 			if err != nil {
 				// Health check failed, warn user
 				log.Printf("%s Health check failed for %s/%s:%d (%d/%d), last reported: %s",
-					common.ColoredWarn, misc.ConvertProtoToString(s.proto), s.addr, s.port, curFailure, maxFailure,
-					s.lastHealthCheck.String())
+					common.ColoredWarn, misc.ConvertProtoToString(r.proto), r.addr, r.port, curFailure, maxFailure,
+					r.lastHealthCheck.String())
 				curFailure++
 			} else {
 				// Health check successfully finished, reset failure count and set last health check time
 				curFailure = 0
-				s.lastHealthCheck = time.Now()
+				r.lastHealthCheck = time.Now()
 				log.Printf("%s Health check finished for %s/%s:%d (%d/%d), last reported: %s",
-					common.ColoredInfo, misc.ConvertProtoToString(s.proto), s.addr, s.port, curFailure, maxFailure,
-					s.lastHealthCheck.String())
+					common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port, curFailure, maxFailure,
+					r.lastHealthCheck.String())
 			}
 
 			// Reached max health check failures
 			if curFailure >= maxFailure {
 				log.Printf("%s Max health check failure count reached for %s/%s:%d (%d/%d)",
-					common.ColoredError, misc.ConvertProtoToString(s.proto), s.addr, s.port, curFailure, maxFailure)
+					common.ColoredError, misc.ConvertProtoToString(r.proto), r.addr, r.port, curFailure, maxFailure)
 				break
 			}
 
@@ -86,7 +86,7 @@ func (s *replica) StartHealthCheckRoutine() {
 		}
 
 		log.Printf("%s Controller triggered garbage collection for %s/%s:%d due to max health check failure",
-			common.ColoredInfo, misc.ConvertProtoToString(s.proto), s.addr, s.port)
+			common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port)
 
 		// @todo trigger garbage collection for the given service
 		// perhaps create a new channel for garbage collection?
@@ -162,4 +162,14 @@ func performHealthCheck(conn net.Conn) error {
 	}
 
 	return nil
+}
+
+// IsSpec returns if given spec was the one running this replica
+func (r *replica) IsSpec(port int, proto uint8) bool {
+	return r.port == port && r.proto == proto
+}
+
+// GetInfo returns a string describing the listen address
+func (r *replica) GetInfo() string {
+	return fmt.Sprintf("%s:%d", r.addr, r.port)
 }
