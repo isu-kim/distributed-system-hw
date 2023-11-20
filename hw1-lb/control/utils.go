@@ -57,11 +57,11 @@ func parseCommandType(mapData map[string]interface{}) (uint8, error) {
 	cmd = strings.ToLower(cmd)
 
 	if strings.Compare(cmd, "register") == 0 { // Register command
-		return cmdTypeRegister, nil
+		return common.CmdTypeRegister, nil
 	} else if strings.Compare(cmd, "unregister") == 0 { // Unregister command
-		return cmdTypeUnregister, nil
+		return common.CmdTypeUnregister, nil
 	} else if strings.Compare(cmd, "hello") == 0 { // Hello command (health check)
-		return cmdTypeHello, nil
+		return common.CmdTypeHello, nil
 	} else {
 		return 0, nil
 	}

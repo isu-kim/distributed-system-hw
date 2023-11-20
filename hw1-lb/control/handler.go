@@ -83,69 +83,6 @@ func (h *Handler) setupSignalHandling() {
 	}()
 }
 
-/*
-// garbageCollectorRoutine performs garbage collection on services which do not have any replicas in it
-// This will listen for signals coming from health check failures in replicas
-func (h *Handler) garbageCollectorRoutine() {
-	log.Printf("%s Garbage collector started", common.ColoredInfo)
-	go func() {
-		for {
-			select {
-			case data := <-gcChannel:
-				log.Printf("%s Garbage collector received cleanup request for %s/%s:%d",
-					common.ColoredInfo, misc.ConvertProtoToString(data.proto), data.addr, data.port)
-				h.performGarbageCollection(data)
-			}
-		}
-	}()
-}
-
-// performGarbageCollection performs garbage collection on unused replica cleanup
-func (h *Handler) performGarbageCollection(gc garbageCollectionRequest) {
-	// Create a new slice to store replicas that do not match the criteria
-	var updatedReplicas []*replica
-
-	// Remove replica from replica collection
-	h.lock.Lock()
-	// Iterate over the existing replicas
-	for _, r := range h.replicas {
-		// Check if the replica matches the specified criteria
-		if !r.IsExactSpec(gc.addr, gc.port, gc.proto) {
-			// If it doesn't match, add it to the updatedReplicas slice
-			updatedReplicas = append(updatedReplicas, r)
-		}
-	}
-
-	// Update the replicas in the ReplicaHolder with the filtered slice
-	h.replicas = updatedReplicas
-	h.lock.Unlock()
-
-	// Check if the service related to this replica needs to be destroyed
-	var updatedServers []*server.Server
-	for _, s := range h.childServers {
-		if !s.IsSpec(gc.port, gc.proto) {
-			updatedServers = append(updatedServers, s)
-		} else {
-			// Decrement replica counts, if there are not zero replica, terminate server
-			s.DecrementReplica()
-			if !(s.GetReplicaCount() > 0) {
-				log.Printf("%s Controller stopping service %s/%d since there are no replicas attached",
-					common.ColoredInfo, misc.ConvertProtoToString(gc.proto), gc.port)
-				err := s.Close()
-				if err != nil {
-					log.Printf("%s Controller failed to stop server %s/%d: %v",
-						common.ColoredWarn, misc.ConvertProtoToString(gc.proto), gc.port, err)
-				}
-			} else {
-				log.Printf("%s Controller updated service %s/%d, replica count=%d",
-					common.ColoredInfo, misc.ConvertProtoToString(gc.proto), gc.port, s.GetReplicaCount())
-			}
-		}
-	}
-}
-
-*/
-
 // tempHandler is a temp connection handler function for connection callbacks
 func (h *Handler) tempHandler(conn net.Conn) {
 	buffer := make([]byte, 1024)
@@ -178,7 +115,7 @@ func (h *Handler) tempHandler(conn net.Conn) {
 
 		// If this command was register, start up a new server
 		switch commandType {
-		case cmdTypeRegister:
+		case common.CmdTypeRegister:
 			err := h.processRegister(conn, userPayload)
 			if err != nil {
 				log.Printf("%s Controller could not add a new replica [src=%s]: %v",
