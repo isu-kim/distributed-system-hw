@@ -152,11 +152,11 @@ func (h *Handler) processRegister(conn net.Conn, mapData map[string]interface{})
 		if targetService.isLive {
 			// This means we are registering a new replica for the service
 			log.Printf("%s Controller: %s/%d is existing service, adding a new replica (total %d availble replicas)",
-				common.ColoredInfo, misc.ConvertProtoToString(protocol), port, len(targetService.getReplicas()))
+				common.ColorCmdRegister, misc.ConvertProtoToString(protocol), port, len(targetService.getReplicas()))
 		} else {
 			// This means that the service has no replica, thus had its server terminated, we need to restart server
 			log.Printf("%s Controller: %s/%d is existing service, however had its server terminated, restarting server",
-				common.ColoredInfo, misc.ConvertProtoToString(protocol), port)
+				common.ColorCmdRegister, misc.ConvertProtoToString(protocol), port)
 			targetService, err = h.restartService(port, protocol, targetService)
 			if err != nil {
 				return err
@@ -165,7 +165,7 @@ func (h *Handler) processRegister(conn net.Conn, mapData map[string]interface{})
 	} else {
 		// This means we are registering a new service
 		log.Printf("%s Controller: %s/%d is a new service",
-			common.ColoredInfo, misc.ConvertProtoToString(protocol), port)
+			common.ColorCmdRegister, misc.ConvertProtoToString(protocol), port)
 
 		// Create a new service
 		targetService, err = h.createNewService(port, protocol)
@@ -242,6 +242,9 @@ func (h *Handler) processUnregister(conn net.Conn, mapData map[string]interface{
 				misc.ConvertProtoToString(protocol), addrParts[0], port)
 			return errors.New(msg)
 		} else {
+			log.Printf("%s Controller removed %s/%s:%d from service %s/%d (total %d availble replicas)",
+				common.ColorCmdUnregister, misc.ConvertProtoToString(protocol), addrParts[0], port,
+				misc.ConvertProtoToString(protocol), port, len(targetService.getReplicas()))
 			return nil
 		}
 	}

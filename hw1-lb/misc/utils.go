@@ -25,6 +25,8 @@ func InitColoredLogs() {
 	common.ColoredWarn = color.New(color.FgHiYellow).Sprint("[WARN]")
 	common.ColoredError = color.New(color.FgHiRed).Sprint("[ERROR]")
 	common.ColoredInfo = color.New(color.FgHiGreen).Sprintf("[INFO]")
+	common.ColorCmdRegister = color.New(color.FgBlue).Sprintf("[REGISTER]")
+	common.ColorCmdUnregister = color.New(color.FgRed).Sprintf("[UNREGISTER]")
 }
 
 // AreMapsEqual checks if two maps are equal

@@ -2,9 +2,11 @@ package common
 
 // Defne colored outputs
 var (
-	ColoredWarn  string
-	ColoredError string
-	ColoredInfo  string
+	ColoredWarn        string
+	ColoredError       string
+	ColoredInfo        string
+	ColorCmdRegister   string
+	ColorCmdUnregister string
 )
 
 const (
