@@ -90,14 +90,14 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		// Read data from the connection
 		n, err := conn.Read(buffer)
 		if err != nil {
-			log.Printf("%s Controller: Src=%s error reading: %v",
-				common.ColoredWarn, conn.RemoteAddr(), err)
+			//log.Printf("%s Controller: Src=%s error reading: %v",
+			//	common.ColoredWarn, conn.RemoteAddr(), err)
 			return
 		}
 
 		// Print the received data
-		log.Printf("%s Controller received %s [src=%s]",
-			common.ColoredInfo, buffer[:n], conn.RemoteAddr())
+		//log.Printf("%s Controller received %s [src=%s]",
+		//	common.ColoredInfo, buffer[:n], conn.RemoteAddr())
 
 		// Parse json from user's transmission
 		userPayload, err := jsonParser(buffer[:n])
@@ -107,11 +107,7 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		}
 
 		// Parse command type
-		commandType, err := parseCommandType(userPayload)
-		if err != nil {
-			log.Printf("%s Controller could not parse command type [src=%s]: %v",
-				common.ColoredWarn, conn.RemoteAddr(), err)
-		}
+		commandType, _ := parseCommandType(userPayload)
 
 		// If this command was register, start up a new server
 		switch commandType {
@@ -121,12 +117,9 @@ func (h *Handler) tempHandler(conn net.Conn) {
 		case common.CmdTypeUnregister:
 			err := h.processUnregister(conn, userPayload)
 			returnResult(conn, err, commandType)
-		default:
-			log.Printf("%s Controller received unknown command type [src=%s]",
-				common.ColoredWarn, conn.RemoteAddr())
 		}
-		log.Printf("%s Controller received command %d [src=%s]",
-			common.ColoredInfo, commandType, conn.RemoteAddr())
+		//log.Printf("%s Controller received command %d [src=%s]",
+		//	common.ColoredInfo, commandType, conn.RemoteAddr())
 	}
 }
 

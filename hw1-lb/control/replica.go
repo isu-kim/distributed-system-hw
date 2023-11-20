@@ -80,8 +80,8 @@ func (r *Replica) StartHealthCheckRoutine() {
 					// Health check successfully finished, reset failure count and set last health check time
 					curFailure = 0
 					r.lastHealthCheck = time.Now()
-					log.Printf("%s Health check finished for %s/%s:%d",
-						common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port)
+					//log.Printf("%s Health check finished for %s/%s:%d",
+					//	common.ColoredInfo, misc.ConvertProtoToString(r.proto), r.addr, r.port)
 				}
 
 				// Reached max health check failures

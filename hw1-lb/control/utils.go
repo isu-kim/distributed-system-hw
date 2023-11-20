@@ -1,6 +1,7 @@
 package control
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,9 +42,13 @@ func envParseAddress() (string, int) {
 }
 
 // jsonParser decodes raw bytes into JSON object
-func jsonParser(bytes []byte) (map[string]interface{}, error) {
+func jsonParser(payload []byte) (map[string]interface{}, error) {
 	var ret map[string]interface{}
-	err := json.Unmarshal(bytes, &ret)
+
+	b := bytes.NewBuffer(payload)
+	d := json.NewDecoder(b)
+
+	err := d.Decode(&ret)
 	return ret, err
 }
 

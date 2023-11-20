@@ -110,12 +110,9 @@ func (s *service) terminateService() error {
 // for stability, we are going to use mutex and avoid any possible race conditions
 // When autoTry was set on, the function will pick next replica when current replica fails
 func (s *service) doLB(srcConn net.Conn) {
-
 	// The replicas that are possible to be scheduled
 	replicas := s.getReplicas()
 	replicaLen := len(replicas)
-
-	log.Printf("REPLICAS: %v (%d)", replicas, replicaLen)
 
 	s.lock.Lock()
 	// Perform simple round-robin algorithm
@@ -135,16 +132,17 @@ func (s *service) doLB(srcConn net.Conn) {
 	targetAddr := fmt.Sprintf("%s:%d", targetReplica.addr, targetReplica.port)
 	targetProto := misc.ConvertProtoToString(targetReplica.proto)
 
+	schedIndex := s.lastScheduledIndex
 	s.lock.Unlock()
 
 	// For debugging purpose
-	log.Printf("%s Forwarding %s -> %s proto=%s / index=%d",
-		common.ColoredInfo, srcConn.RemoteAddr(), targetAddr, targetProto, s.lastScheduledIndex)
+	log.Printf("%s Forwarding %s -> %s proto=%s / index=%d / total=%d",
+		common.ColoredInfo, srcConn.RemoteAddr(), targetAddr, targetProto, schedIndex, replicaLen)
 
 	// Forward traffic from srcConn to targetAddr
 	err := forwardTraffic(srcConn, targetAddr, targetProto)
 	if err != nil {
 		log.Printf("%s Forwarding %s -> %s proto=%s / index=%d failed: %v ",
-			common.ColoredWarn, srcConn.RemoteAddr(), targetAddr, targetProto, s.lastScheduledIndex, err)
+			common.ColoredWarn, srcConn.RemoteAddr(), targetAddr, targetProto, schedIndex, err)
 	}
 }

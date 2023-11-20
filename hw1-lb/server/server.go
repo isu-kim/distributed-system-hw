@@ -77,11 +77,7 @@ func (s *Server) DoMainLoop(wg *sync.WaitGroup, handler ConnectionHandler) {
 				// Check if the error is due to the listener being closed
 				_, ok := err.(net.Error)
 				if ok {
-
-					//log.Printf("%s \"%s(%s/%s)\" Temporary error accepting connection: %v, val",
-					//	common.ColoredWarn, s.alias, misc.ConvertProtoToString(s.proto), s.address, err)
 					continue
-
 				}
 
 				// Listener is closed or other non-temporary error
@@ -91,8 +87,10 @@ func (s *Server) DoMainLoop(wg *sync.WaitGroup, handler ConnectionHandler) {
 			}
 
 			// Handle the connection in a new goroutine
+			/**
 			log.Printf("%s \"%s(%s/%s)\" Request from: %s",
 				common.ColoredInfo, s.alias, misc.ConvertProtoToString(s.proto), s.address, conn.RemoteAddr())
+			*/
 			go handler(conn)
 		}
 	}
