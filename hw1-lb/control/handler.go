@@ -1,6 +1,7 @@
 package control
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"lb/common"
@@ -120,6 +121,38 @@ func (h *Handler) tempHandler(conn net.Conn) {
 			if err != nil {
 				log.Printf("%s Controller could not add a new replica [src=%s]: %v",
 					common.ColoredError, conn.RemoteAddr(), err)
+
+				// Registration failed, send acknowledgment with error message to the client
+				failureResponse := map[string]string{"ack": "failed", "msg": err.Error()}
+				failureResponseJSON, err := json.Marshal(failureResponse)
+				if err != nil {
+					log.Printf("%s Controller Error encoding failure response: %v\n",
+						common.ColoredError, err)
+					return
+				}
+
+				_, err = conn.Write(failureResponseJSON)
+				if err != nil {
+					log.Printf("%s Error writing failure response to client: %v\n",
+						common.ColoredError, err)
+					return
+				}
+			} else {
+				// Registration successful, send acknowledgment to the client
+				successResponse := map[string]string{"ack": "successful"}
+				successResponseJSON, err := json.Marshal(successResponse)
+				if err != nil {
+					log.Printf("%s Error encoding success response: %v\n",
+						common.ColoredError, err)
+					return
+				}
+
+				_, err = conn.Write(successResponseJSON)
+				if err != nil {
+					log.Printf("%s Error writing success response to client: %v\n",
+						common.ColoredError, err)
+					return
+				}
 			}
 		default:
 			log.Printf("%s Controller received unknown command type [src=%s]",
