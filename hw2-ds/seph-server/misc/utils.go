@@ -3,6 +3,7 @@ package misc
 import (
 	"fmt"
 	"github.com/fatih/color"
+	"os"
 )
 
 func PrintLogo() {
@@ -20,4 +21,9 @@ func PrintLogo() {
 func InitColoredLogs() {
 	ColoredClient = color.New(color.FgHiGreen).Sprint("CLIENT")
 	ColoredReplica = color.New(color.FgHiYellow).Sprint("REPLICA")
+}
+
+// IsReplica0 represents if this replica instance was replicas[0]
+func IsReplica0() bool {
+	return len(os.Getenv("IS_REPLICA_0")) != 0
 }

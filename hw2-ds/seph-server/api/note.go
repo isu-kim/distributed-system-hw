@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"seph/common"
 	"seph/misc"
+	"strconv"
 )
 
 // getNoteAll is for [GET] /note API
@@ -28,6 +29,46 @@ func (h *Handler) getNoteAll(c *gin.Context) {
 func (h *Handler) getNoteSpecific(c *gin.Context) {
 	log.Printf("%s [REQUEST][%s] %s {} ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
+
+	// Read ID param from API
+	noteID := c.Param("id")
+
+	// ID was unable to be converted as an integer
+	note, err := strconv.Atoi(noteID)
+	if err != nil {
+		errResponse := common.NoteErrorResponse{
+			Msg:    "wrong URI, ID was invalid",
+			Method: c.Request.Method,
+			Uri:    c.Request.RequestURI,
+			Body:   "",
+		}
+
+		c.JSON(http.StatusBadRequest, errResponse)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+		return
+	}
+
+	// If ID was able to be converted, try reading it from local storage
+	err, notes := h.dsh.ReadSpecific(note)
+	if err != nil {
+		errResponse := common.NoteErrorResponse{
+			Msg:    "wrong URI, non existing ID",
+			Method: c.Request.Method,
+			Uri:    c.Request.RequestURI,
+			Body:   "",
+		}
+
+		c.JSON(http.StatusBadRequest, errResponse)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+		return
+	}
+
+	// This worked, so return note information
+	c.JSON(http.StatusOK, notes)
+	log.Printf("%s [REPLY][%s] %s %v",
+		misc.ColoredClient, c.Request.Method, c.Request.RequestURI, notes)
 }
 
 // postNote is for [POST] /note API
@@ -47,13 +88,44 @@ func (h *Handler) postNote(c *gin.Context) {
 		}
 
 		// Return bad request, user sent us bad thing!
+		log.Println(msg)
 		c.JSON(http.StatusBadRequest, errResponse)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+		return
 	} else {
 		msg = fmt.Sprintf("%s %v", msg, req)
 	}
 
 	// Print out the request information
 	log.Println(msg)
+
+	// Now the distributed storage part!
+	switch h.syncMode {
+	case misc.SyncLocalWrite:
+		// @todo
+		break
+	case misc.SyncRemoteWrite:
+		err, result := h.handleRemoteWrite(c, req)
+		if err != nil {
+			errResponse := common.NoteErrorResponse{
+				Msg:    err.Error(),
+				Method: c.Request.Method,
+				Uri:    c.Request.RequestURI,
+				Body:   fmt.Sprintf("%v", req),
+			}
+			c.JSON(http.StatusInternalServerError, errResponse)
+			log.Printf("%s [REPLY][%s] %s %v",
+				misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+			return
+		}
+
+		// Yes this worked
+		c.JSON(http.StatusOK, result)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, result)
+		return
+	}
 }
 
 // putNoteSpecific is for [PUT] /note/{0-9} API

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"seph/ds"
+	"seph/misc"
 	"strings"
 	"time"
 )
@@ -28,9 +29,9 @@ func New(addr string, port int, sync string, replicas []string) *Handler {
 	// Parse sync type
 	var syncMode int
 	if strings.Contains(sync, "local-write") {
-		syncMode = 1
+		syncMode = misc.SyncLocalWrite
 	} else if strings.Contains(sync, "remote-write") {
-		syncMode = 2
+		syncMode = misc.SyncRemoteWrite
 	}
 
 	// Create handler and init routes

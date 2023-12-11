@@ -67,7 +67,7 @@ func (h *Handler) Init() error {
 		// Dump all notes into the local storage
 		h.DumpNotes(notes)
 
-		log.Printf("[Seph] Initialization finished")
+		log.Printf("[Seph] Initialization finished %d entries synced", len(notes))
 		return nil
 	}
 }

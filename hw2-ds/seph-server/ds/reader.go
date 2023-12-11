@@ -8,6 +8,8 @@ import (
 	"path"
 	"path/filepath"
 	"seph/common"
+	"strconv"
+	"strings"
 )
 
 // ReadAll reads all notes in the target directory
@@ -48,6 +50,37 @@ func (h *Handler) ReadSpecific(id int) (error, common.Note) {
 	fileName = path.Join(h.targetDir, fileName)
 
 	return h.readNoteFromFile(fileName)
+}
+
+// AssignNewID assigns a new ID for new note
+// For example, if last file was 3.json, this will return 4
+func (h *Handler) AssignNewID() (error, int) {
+	// Open the target directory which stores all notes
+	files, err := os.ReadDir(h.targetDir)
+	if err != nil {
+		log.Printf("[Seph] Error reading directory %s: %v", h.targetDir, err)
+		return nil, -1
+	}
+
+	lastIndex := -1
+
+	// Read all .json files in the target directory
+	for _, file := range files {
+		if filepath.Ext(file.Name()) == ".json" {
+			fileNameWithoutExtension := strings.Split(file.Name(), ".")[0]
+			val, err := strconv.Atoi(fileNameWithoutExtension)
+			if err != nil {
+				log.Printf("[Seph] Error converting file name %s to integer: %v", file.Name(), err)
+			}
+
+			// If this value was larger than the last index, set this as the last index
+			if lastIndex < val {
+				lastIndex = val
+			}
+		}
+	}
+
+	return nil, lastIndex + 1
 }
 
 // readNoteFromFile reads a specific file as note format
