@@ -48,7 +48,7 @@ func askReplica() (error, int) {
 	}
 
 	// Check if replica input was valid
-	if userInput < 0 || userInput > len(config.Replicas) {
+	if userInput < 0 || userInput > len(config.Replicas)-1 {
 		fmt.Println("Invalid replica index")
 		return errors.New("invalid index"), -1
 	}
