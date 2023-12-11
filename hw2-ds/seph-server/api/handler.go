@@ -13,12 +13,13 @@ import (
 
 // Handler represents a single API handler
 type Handler struct {
-	engine   *gin.Engine
-	addr     string
-	port     int
-	syncMode int
-	dsh      *ds.Handler
-	replicas []string
+	engine     *gin.Engine
+	addr       string
+	port       int
+	syncMode   int
+	dsh        *ds.Handler
+	replicas   []string
+	primaryMap map[int]string
 }
 
 // New creates a new API handler
@@ -36,12 +37,13 @@ func New(addr string, port int, sync string, replicas []string) *Handler {
 
 	// Create handler and init routes
 	h := Handler{
-		engine:   engine,
-		addr:     addr,
-		port:     port,
-		syncMode: syncMode,
-		dsh:      nil,
-		replicas: replicas,
+		engine:     engine,
+		addr:       addr,
+		port:       port,
+		syncMode:   syncMode,
+		dsh:        nil,
+		replicas:   replicas,
+		primaryMap: map[int]string{},
 	}
 	h.initRoutes()
 

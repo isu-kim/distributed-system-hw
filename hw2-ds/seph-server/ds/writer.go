@@ -72,7 +72,7 @@ func (h *Handler) UpdateNote(note common.Note) error {
 func (h *Handler) DumpNotes(notes []common.Note) {
 	// For all notes, iterate and create
 	for _, note := range notes {
-		err := h.UpdateNote(note)
+		err := h.WriteNote(note)
 		if err != nil {
 			log.Printf("[Seph] Error dumping note %d: %v", note.Id, err)
 			continue
@@ -89,4 +89,28 @@ func (h *Handler) DeleteNote(id int) error {
 
 	// Try removing file
 	return os.Remove(fileName)
+}
+
+// WriteNote will just force writing note to a file
+func (h *Handler) WriteNote(note common.Note) error {
+	// Construct target file name
+	fileName := fmt.Sprintf("%d.json", note.Id)
+	fileName = path.Join(h.targetDir, fileName)
+
+	// This Means that the file exists, so just overwrite
+	// Marshal note into JSON
+	noteJSON, err := json.MarshalIndent(note, "", "  ")
+	if err != nil {
+		msg := fmt.Sprintf("error marshalling note %s to JSON: %v", fileName, err)
+		return errors.New(msg)
+	}
+
+	// Write JSON to file
+	err = os.WriteFile(fileName, noteJSON, 0644)
+	if err != nil {
+		msg := fmt.Sprintf("error writing note %s: %v", fileName, err)
+		return errors.New(msg)
+	}
+
+	return nil
 }

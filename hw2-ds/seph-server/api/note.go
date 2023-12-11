@@ -103,7 +103,7 @@ func (h *Handler) postNote(c *gin.Context) {
 	// Now the distributed storage part!
 	switch h.syncMode {
 	case misc.SyncLocalWrite:
-		// @todo
+
 		break
 	case misc.SyncRemoteWrite:
 		err, result := h.handleRemoteWrite(c, req)

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"seph/common"
+	"seph/misc"
 	"sync"
 )
 
@@ -36,7 +36,7 @@ func New(targetDir string, replicas []string) *Handler {
 // But, I am too lazy to cover this :b
 func (h *Handler) Init() error {
 	// If this was replicas[0], skip
-	if len(os.Getenv("IS_REPLICA_0")) != 0 {
+	if misc.IsReplica0() {
 		log.Printf("[Seph] Initialization skipped, this was replicas[0]")
 		return nil
 	} else { // If this was not replicas[0], then get data from replicas[0]

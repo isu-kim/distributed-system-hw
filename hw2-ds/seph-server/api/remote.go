@@ -203,7 +203,6 @@ func (h *Handler) remoteDeletePrimary(c *gin.Context) {
 	}
 
 	// Till here, only primary knows that a note was deleted
-
 	// Now primary shall tell all replicas to update
 	// For all replicas, delete
 	for i, replica := range h.replicas {
@@ -345,6 +344,15 @@ func (h *Handler) remoteDeleteBackup(c *gin.Context) {
 func (h *Handler) handleRemoteWrite(c *gin.Context, note common.Note) (error, common.Note) {
 	// If this was replica 0, skip forward
 	if misc.IsReplica0() {
+		// Assign new ID for the new note
+		err, newID := h.dsh.AssignNewID()
+		if err != nil {
+			log.Printf("Unable to assign new ID for note: %v", err)
+			return err, common.Note{}
+		}
+
+		// Update note and try creating the note
+		note.Id = newID
 		return h.performRemoteWrite(c, note)
 	} else { // If not, forward this request to the primary
 		log.Printf("%s [REQUEST] Forward request to primary", misc.ColoredReplica)
@@ -417,16 +425,7 @@ func (h *Handler) handleRemoteWrite(c *gin.Context, note common.Note) (error, co
 // performRemoteWrite actually performs the remote write, this will create the file as well
 func (h *Handler) performRemoteWrite(c *gin.Context, note common.Note) (error, common.Note) {
 	if strings.Contains(c.Request.Method, "POST") { // If this was POST, create new one
-		// Assign new ID for the new note
-		err, newID := h.dsh.AssignNewID()
-		if err != nil {
-			log.Printf("Unable to assign new ID for note: %v", err)
-			return err, common.Note{}
-		}
-
-		// Update note and try creating the note
-		note.Id = newID
-		err = h.dsh.CreateNote(note)
+		err := h.dsh.CreateNote(note)
 		if err != nil {
 			log.Printf("Unable to create new note: %v", err)
 			return err, common.Note{}

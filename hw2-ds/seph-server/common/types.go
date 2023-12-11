@@ -7,6 +7,12 @@ type Note struct {
 	Body  string `json:"body"`
 }
 
+// NoteWithPrimary stores a single Note struct with Primary
+type NoteWithPrimary struct {
+	Note    Note   `json:"note"`
+	Primary string `json:"primary"`
+}
+
 // NoteErrorResponse is for returning error responses
 type NoteErrorResponse struct {
 	Msg    string `json:"msg"`

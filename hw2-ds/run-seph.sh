@@ -42,6 +42,7 @@ if [ "$1" == "start" ]; then
     image: isukim/seph:latest
     environment:
       - SEPH_DATA=/go/app/data
+      - REPLICA_ID=replica-$i
 $(if [ "$i" -eq "1" ]; then echo "      - IS_REPLICA_0=true"; fi)
     container_name: replica-$i
     volumes:
