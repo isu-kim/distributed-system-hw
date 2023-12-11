@@ -1,9 +1,10 @@
 package main
 
 import (
-	"hw2-ds/misc"
 	"log"
 	"os"
+	"seph/api"
+	"seph/misc"
 )
 
 var config misc.Config
@@ -26,6 +27,17 @@ func main() {
 		return
 	}
 
+	// Print logo and initialize colors!
+	misc.PrintLogo()
+	misc.InitColoredLogs()
+
 	log.Printf("Loaded config file successfully: ")
 	config.PrintConfig()
+
+	// Start up the API server
+	h := api.New("0.0.0.0", config.ServicePort)
+	err = h.Run()
+	if err != nil {
+		return
+	}
 }
