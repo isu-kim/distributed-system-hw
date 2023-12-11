@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"seph/common"
 	"seph/misc"
+	"strconv"
 	"strings"
 )
 
@@ -54,13 +55,50 @@ func (h *Handler) remoteForwardPrimary(c *gin.Context) {
 
 	// Everything went on correct
 	c.JSON(http.StatusOK, newNote)
-	return
 
+	// Till here, only the primary knows that a note was written
 }
 
 // remoteDeletePrimary is for [DELETE] /primary/{0-9} API
 func (h *Handler) remoteDeletePrimary(c *gin.Context) {
+	log.Printf("%s [REQUEST][%s] %s {} ",
+		misc.ColoredReplica, c.Request.Method, c.Request.RequestURI)
 
+	// Read ID param from API
+	noteID := c.Param("id")
+
+	// ID was unable to be converted as an integer
+	id, err := strconv.Atoi(noteID)
+	if err != nil {
+		errResponse := common.NoteErrorResponse{
+			Msg:    "wrong URI, ID was invalid",
+			Method: c.Request.Method,
+			Uri:    c.Request.RequestURI,
+			Body:   "",
+		}
+
+		c.JSON(http.StatusBadRequest, errResponse)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredReplica, c.Request.Method, c.Request.RequestURI, errResponse)
+		return
+	}
+
+	// Perform note delete
+	err = h.performRemoteDelete(id)
+	response := struct {
+		Msg string `json:"msg"`
+	}{}
+	if err != nil {
+		response.Msg = "FAILED"
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	} else {
+		response.Msg = "OK"
+		c.JSON(http.StatusOK, response)
+		return
+	}
+
+	// Till here, only primary knows that a note was deleted
 }
 
 // remoteUpdateBackup is for [POST/PUT/PATCH] /backup API
@@ -102,7 +140,7 @@ func (h *Handler) handleRemoteWrite(c *gin.Context, note common.Note) (error, co
 			// Create a new request accordingly
 			request, err := http.NewRequest(c.Request.Method, endpoint, bytes.NewBuffer(payloadBytes))
 			if err != nil {
-				log.Printf("Error creating %s request: %v\n", c.Request.Method, err)
+				log.Printf("Error creating %s request: %v to primary\n", c.Request.Method, err)
 				return err, common.Note{}
 			}
 			request.Header.Set("Content-Type", "application/json")
@@ -144,6 +182,7 @@ func (h *Handler) handleRemoteWrite(c *gin.Context, note common.Note) (error, co
 	}
 }
 
+// performRemoteWrite actually performs the remote write, this will create the file as well
 func (h *Handler) performRemoteWrite(c *gin.Context, note common.Note) (error, common.Note) {
 	if strings.Contains(c.Request.Method, "POST") { // If this was POST, create new one
 		// Assign new ID for the new note
@@ -211,4 +250,44 @@ func (h *Handler) performRemoteWrite(c *gin.Context, note common.Note) (error, c
 	} else {
 		return errors.New("unknown method"), common.Note{}
 	}
+}
+
+// handleRemoteDelete handles the delete operation
+func (h *Handler) handleRemoteDelete(id int) error {
+	// If this was replica 0, skip forward
+	if misc.IsReplica0() {
+		return h.performRemoteDelete(id)
+	} else { // If not, forward this request to the primary
+		// Perform delete request
+		var response *http.Response
+		endpoint := fmt.Sprintf("http://%s/primary/%d", h.replicas[0], id)
+
+		// Create a new request accordingly
+		request, err := http.NewRequest("DELETE", endpoint, nil)
+		if err != nil {
+			log.Printf("Error creating DELETE request to primary: %v\n", err)
+			return err
+		}
+		request.Header.Set("Content-Type", "application/json")
+
+		// Perform the request
+		client := http.Client{}
+		response, err = client.Do(request)
+		if err != nil {
+			log.Printf("Error making DELETE request to primary %s: %v\n", endpoint, err)
+			return err
+		}
+
+		// Just check if code was OK
+		if response.StatusCode == http.StatusOK {
+			return nil
+		} else {
+			return err
+		}
+	}
+}
+
+// performRemoteDelete removes the file from current local storage
+func (h *Handler) performRemoteDelete(id int) error {
+	return h.dsh.DeleteNote(id)
 }

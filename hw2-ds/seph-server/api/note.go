@@ -152,6 +152,33 @@ func (h *Handler) putNoteSpecific(c *gin.Context) {
 
 	// Print out the request information
 	log.Println(msg)
+
+	// Now the distributed storage part!
+	switch h.syncMode {
+	case misc.SyncLocalWrite:
+		// @todo
+		break
+	case misc.SyncRemoteWrite:
+		err, result := h.handleRemoteWrite(c, req)
+		if err != nil {
+			errResponse := common.NoteErrorResponse{
+				Msg:    err.Error(),
+				Method: c.Request.Method,
+				Uri:    c.Request.RequestURI,
+				Body:   fmt.Sprintf("%v", req),
+			}
+			c.JSON(http.StatusInternalServerError, errResponse)
+			log.Printf("%s [REPLY][%s] %s %v",
+				misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+			return
+		}
+
+		// Yes this worked
+		c.JSON(http.StatusOK, result)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, result)
+		return
+	}
 }
 
 // patchNoteSpecific is for [PATCH] /note/{0-9} API
@@ -178,12 +205,73 @@ func (h *Handler) patchNoteSpecific(c *gin.Context) {
 
 	// Print out the request information
 	log.Println(msg)
+
+	// Now the distributed storage part!
+	switch h.syncMode {
+	case misc.SyncLocalWrite:
+		// @todo
+		break
+	case misc.SyncRemoteWrite:
+		err, result := h.handleRemoteWrite(c, req)
+		if err != nil {
+			errResponse := common.NoteErrorResponse{
+				Msg:    err.Error(),
+				Method: c.Request.Method,
+				Uri:    c.Request.RequestURI,
+				Body:   fmt.Sprintf("%v", req),
+			}
+			c.JSON(http.StatusInternalServerError, errResponse)
+			log.Printf("%s [REPLY][%s] %s %v",
+				misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+			return
+		}
+
+		// Yes this worked
+		c.JSON(http.StatusOK, result)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, result)
+		return
+	}
 }
 
 // deleteNoteSpecific is for [DELETE] /note/{0-9} API
 func (h *Handler) deleteNoteSpecific(c *gin.Context) {
 	log.Printf("%s [REQUEST][%s] %s {} ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
+
+	// Read ID param from API
+	noteID := c.Param("id")
+
+	// ID was unable to be converted as an integer
+	id, err := strconv.Atoi(noteID)
+	if err != nil {
+		errResponse := common.NoteErrorResponse{
+			Msg:    "wrong URI, ID was invalid",
+			Method: c.Request.Method,
+			Uri:    c.Request.RequestURI,
+			Body:   "",
+		}
+
+		c.JSON(http.StatusBadRequest, errResponse)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+		return
+	}
+
+	// Perform remote delete
+	err = h.handleRemoteDelete(id)
+	response := struct {
+		Msg string `json:"msg"`
+	}{}
+	if err != nil {
+		response.Msg = "FAILED"
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	} else {
+		response.Msg = "OK"
+		c.JSON(http.StatusOK, response)
+		return
+	}
 }
 
 // clientRequest prints out the client's request as format mentioned

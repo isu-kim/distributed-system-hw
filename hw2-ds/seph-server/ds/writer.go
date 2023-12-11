@@ -79,3 +79,14 @@ func (h *Handler) DumpNotes(notes []common.Note) {
 		}
 	}
 }
+
+// DeleteNote deletes a specific note
+// Yes this will make a fragmentation, but whatsoever
+func (h *Handler) DeleteNote(id int) error {
+	// Construct target file name
+	fileName := fmt.Sprintf("%d.json", id)
+	fileName = path.Join(h.targetDir, fileName)
+
+	// Try removing file
+	return os.Remove(fileName)
+}
