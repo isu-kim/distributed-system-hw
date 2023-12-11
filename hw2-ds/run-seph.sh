@@ -1,7 +1,8 @@
 #!/bin/bash
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 start <no_replica> | destroy | client"
+    echo "Usage: $0 start <no_replica> <sync_mode> | destroy | client"
+    echo "Ex) start 3 remote-write"
     exit 1
 fi
 
@@ -9,13 +10,24 @@ fi
 if [ "$1" == "start" ]; then
     mkdir ./compose/config -p
     replicas="$2"
+    sync_mode="$3"
+
+    if [ "$sync_mode" == "local-write" ]; then
+      echo "Sync mode is local-write"
+    elif [ "$sync_mode" == "remote-write" ]; then
+      echo "Sync mode is remote-write"
+    else
+      echo "Unknown sync mode: $sync_mode, available: local-write, remove-write"
+      exit
+    fi
+
     echo "version: '3'" > docker-compose.yml
     echo "services:" >> docker-compose.yml
 
     # Create config.json
     echo "{" > ./compose/config/config.json
     echo '  "servicePort": 5000,' >> ./compose/config/config.json
-    echo '  "sync": "local-write",' >> ./compose/config/config.json
+    echo "  \"sync\": \"$sync_mode\"," >> ./compose/config/config.json
     echo '  "replicas": [' >> ./compose/config/config.json
 
     for ((i=1; i<=replicas; i++)); do
