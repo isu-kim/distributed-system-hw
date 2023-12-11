@@ -17,8 +17,6 @@ import (
 
 // remoteForwardPrimary is for [POST/PUT/PATCH] /primary API
 func (h *Handler) remoteForwardPrimary(c *gin.Context) {
-	log.Printf("%s [REQUEST] Received forwarded request to primary", misc.ColoredReplica)
-
 	// Try parsing body JSON
 	err, reqNote := clientRequest(c)
 	if err != nil {
@@ -165,6 +163,7 @@ func (h *Handler) remoteForwardPrimary(c *gin.Context) {
 	}
 
 	// Everything went on correct
+	log.Printf("%s [REPLY] Forward request to primary", misc.ColoredReplica)
 	c.JSON(http.StatusOK, newNote)
 }
 
@@ -260,8 +259,7 @@ func (h *Handler) remoteDeletePrimary(c *gin.Context) {
 	// Yes, the update went on correctly!
 	response.Msg = "OK"
 	c.JSON(http.StatusOK, response)
-	log.Printf("%s [REPLY][%s] %s %v",
-		misc.ColoredReplica, c.Request.Method, c.Request.RequestURI, response)
+	log.Printf("%s [REPLY] Forward request to primary", misc.ColoredReplica)
 	return
 }
 
@@ -349,6 +347,8 @@ func (h *Handler) handleRemoteWrite(c *gin.Context, note common.Note) (error, co
 	if misc.IsReplica0() {
 		return h.performRemoteWrite(c, note)
 	} else { // If not, forward this request to the primary
+		log.Printf("%s [REQUEST] Forward request to primary", misc.ColoredReplica)
+
 		// Serialize the payload to JSON
 		payloadBytes, err := json.Marshal(note)
 		if err != nil {
@@ -490,6 +490,8 @@ func (h *Handler) handleRemoteDelete(id int) error {
 	if misc.IsReplica0() {
 		return h.performRemoteDelete(id)
 	} else { // If not, forward this request to the primary
+		log.Printf("%s [REQUEST] Forward request to primary", misc.ColoredReplica)
+
 		// Perform delete request
 		var response *http.Response
 		endpoint := fmt.Sprintf("http://%s/primary/%d", h.replicas[0], id)
