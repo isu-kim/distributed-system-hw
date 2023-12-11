@@ -144,8 +144,6 @@ func (h *Handler) handleLocalWrite(c *gin.Context, note common.Note, primary str
 			return err, common.Note{}
 		}
 
-		log.Printf("[PROPAGATING TO REPLCAIS]: %s", h.replicas)
-
 		// For all replicas, tell them to update
 		for _, replica := range h.replicas {
 			// If this was the primary, skip
@@ -228,8 +226,119 @@ func (h *Handler) handleLocalWrite(c *gin.Context, note common.Note, primary str
 
 		// We successfully wrote, so return id and the note!
 		return nil, note
-	}
-	return nil, note
+	} else if strings.Contains(c.Request.Method, "PUT") ||
+		strings.Contains(c.Request.Method, "PATCH") { // Forward PUT or PATCH
+
+		err, newNote := h.performLocalWrite(c, note)
+		if err != nil {
+			log.Printf("Unable to write local file: %v", err)
+			return err, common.Note{}
+		}
+
+		// This replica's update was successful
+		c.JSON(http.StatusOK, newNote)
+
+		// Serialize the payload to JSON
+		payloadBytes, err := json.Marshal(note)
+		if err != nil {
+			log.Println("Error marshaling JSON payload:", err)
+			return err, common.Note{}
+		}
+
+		// For all replicas, tell them to update as well
+		for _, replica := range h.replicas {
+			// If this was the primary, skip
+			if strings.Contains(replica, primary) {
+				continue
+			}
+
+			log.Printf("[DEBUG] propagating to %s", replica)
+
+			backupEndpoint := fmt.Sprintf("http://%s/backup", replica)                     // For backup
+			primaryUpdateEndpoint := fmt.Sprintf("http://%s/primary/%d", replica, note.Id) // For keeping track of primary
+
+			// Perform backup API
+			// Create a new request accordingly
+			request, err := http.NewRequest(c.Request.Method, backupEndpoint, bytes.NewBuffer(payloadBytes))
+			if err != nil {
+				log.Printf("Error creating %s request: %v to primary\n", c.Request.Method, err)
+				return err, common.Note{}
+			}
+			request.Header.Set("Content-Type", "application/json")
+
+			// Perform the request
+			client := &http.Client{}
+			response, err := client.Do(request)
+			if err != nil {
+				log.Printf("Error making %s request to primary %s: %v\n", c.Request.Method, backupEndpoint, err)
+				return err, common.Note{}
+			}
+
+			// Check if the replica got response correct
+			if response.StatusCode == http.StatusOK {
+				// Read the response body
+				body, err := io.ReadAll(response.Body)
+				if err != nil {
+					log.Printf("Error reading response body from replica %s: %v", backupEndpoint, err)
+					return err, common.Note{}
+				}
+
+				// Try unmarshalling the body into our note format
+				var newNote common.Note
+				err = json.Unmarshal(body, &newNote)
+				if err != nil {
+					log.Printf("Error unmarshalling response from replica %s: %v", backupEndpoint, err)
+					return err, common.Note{}
+				}
+			} else {
+				log.Printf("Non-OK response from replica %s: %v", backupEndpoint, err)
+				return err, common.Note{}
+			}
+			response.Body.Close()
+
+			// Perform primary API
+			request, err = http.NewRequest("GET", primaryUpdateEndpoint, nil)
+			if err != nil {
+				log.Printf("Error creating GET request to replica %s: %v", replica, err)
+				return err, common.Note{}
+			}
+
+			// Add primary value to header
+			request.Header.Add("primary", primary)
+
+			// perform GET request
+			client = &http.Client{}
+			response, err = client.Do(request)
+			if err != nil {
+				log.Printf("Error making GET request to replica %s: %v", replica, err)
+			}
+
+			if response.StatusCode == http.StatusOK {
+				// Read the response body
+				body, err := io.ReadAll(response.Body)
+				if err != nil {
+					log.Printf("Error reading response body from replica %s: %v", primaryUpdateEndpoint, err)
+					return err, common.Note{}
+				}
+
+				// Try unmarshalling the body into our note format
+				var newNote common.Note
+				err = json.Unmarshal(body, &newNote)
+				if err != nil {
+					log.Printf("Error unmarshalling response from replica %s: %v", primaryUpdateEndpoint, err)
+					return err, common.Note{}
+				}
+			} else {
+				log.Printf("Non-OK response from replica %s: %v", primaryUpdateEndpoint, err)
+				return err, common.Note{}
+			}
+			response.Body.Close()
+		}
+		// We successfully wrote, so return id and the note!
+		return nil, note
+	} // I won't give a fuck on other cases
+
+	return errors.New("invalid method"), common.Note{}
 }
 
 // performLocalWrite performs local write
