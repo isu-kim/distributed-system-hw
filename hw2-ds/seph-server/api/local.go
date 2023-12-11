@@ -47,6 +47,13 @@ func (h *Handler) localGetPrimarySpecific(c *gin.Context) {
 	} else { // This means that this was a new note
 		log.Printf("%s [REQUEST] Move item to new primary %s", misc.ColoredReplica, newPrimary)
 	}
+
+	// Construct response
+	response := struct {
+		Msg string `json:"msg"`
+	}{Msg: "OK"}
+	c.JSON(http.StatusOK, response)
+	return
 }
 
 // localUpdateBackup is for [POST/PUT/PATCH] /backup API
@@ -69,7 +76,7 @@ func (h *Handler) localUpdateBackup(c *gin.Context) {
 	}
 
 	// Perform remote write
-	err, newNote := h.performRemoteWrite(c, reqNote)
+	err, newNote := h.performLocalWrite(c, reqNote)
 	if err != nil {
 		errResponse := common.NoteErrorResponse{
 			Msg:    err.Error(),
@@ -137,12 +144,16 @@ func (h *Handler) handleLocalWrite(c *gin.Context, note common.Note, primary str
 			return err, common.Note{}
 		}
 
+		log.Printf("[PROPAGATING TO REPLCAIS]: %s", h.replicas)
+
 		// For all replicas, tell them to update
 		for _, replica := range h.replicas {
 			// If this was the primary, skip
 			if strings.Contains(replica, primary) {
 				continue
 			}
+
+			log.Printf("[DEBUG] propagating to %s", replica)
 
 			backupEndpoint := fmt.Sprintf("http://%s/backup", replica)                     // For backup
 			primaryUpdateEndpoint := fmt.Sprintf("http://%s/primary/%d", replica, note.Id) // For keeping track of primary
@@ -225,7 +236,7 @@ func (h *Handler) handleLocalWrite(c *gin.Context, note common.Note, primary str
 func (h *Handler) performLocalWrite(c *gin.Context, note common.Note) (error, common.Note) {
 	if strings.Contains(c.Request.Method, "POST") { // If this was POST, create new one
 		// Update note and try creating the note
-		err := h.dsh.WriteNote(note)
+		err := h.dsh.CreateNote(note)
 		if err != nil {
 			log.Printf("Unable to create new note: %v", err)
 			return err, common.Note{}

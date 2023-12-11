@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"seph/common"
 	"seph/misc"
 	"strconv"
@@ -103,8 +104,22 @@ func (h *Handler) postNote(c *gin.Context) {
 	// Now the distributed storage part!
 	switch h.syncMode {
 	case misc.SyncLocalWrite:
+		err, _ := h.handleLocalWrite(c, req, os.Getenv("REPLICA_ID"))
+		if err != nil {
+			errResponse := common.NoteErrorResponse{
+				Msg:    err.Error(),
+				Method: c.Request.Method,
+				Uri:    c.Request.RequestURI,
+				Body:   fmt.Sprintf("%v", req),
+			}
+			c.JSON(http.StatusInternalServerError, errResponse)
+			log.Printf("%s [REPLY][%s] %s %v",
+				misc.ColoredClient, c.Request.Method, c.Request.RequestURI, errResponse)
+			return
+		}
 
-		break
+		// Yes this worked
+		return
 	case misc.SyncRemoteWrite:
 		err, result := h.handleRemoteWrite(c, req)
 		if err != nil {
