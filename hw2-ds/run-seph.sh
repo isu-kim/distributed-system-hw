@@ -54,7 +54,7 @@ networks:
       name: bridge
 EOL
 
-    docker-compose up -d
+    docker-compose up -d --remove-orphans
     echo "Seph cluster created with $replicas replicas."
 elif [ "$1" == "destroy" ]; then
     docker-compose kill
@@ -62,8 +62,7 @@ elif [ "$1" == "destroy" ]; then
     echo "Seph cluster destroyed."
 elif [ "$1" == "client" ]; then
     echo "Starting Seph client."
-    docker exec -it seph-client /bin/bash
-else
+    docker exec -it seph-client ./seph-client
     echo "Unknown command. Usage: $0 start <no_replica> | destroy"
     exit 1
 fi
