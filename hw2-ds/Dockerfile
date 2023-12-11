@@ -5,4 +5,7 @@ WORKDIR app
 COPY . .
 RUN go get
 RUN go build
-CMD ["./seph"]
+RUN mkdir data
+RUN mkdir config
+RUN pwd
+CMD ["./seph ./config/config.json"]
