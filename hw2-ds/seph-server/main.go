@@ -4,10 +4,11 @@ import (
 	"log"
 	"os"
 	"seph/api"
+	"seph/ds"
 	"seph/misc"
 )
 
-var config misc.Config
+var Config misc.Config
 
 // main is the entry point of this program
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	var err error
 
 	// Parse config file
-	err, config = misc.Parse(configFile)
+	err, Config = misc.Parse(configFile)
 	if err != nil {
 		return
 	}
@@ -32,10 +33,14 @@ func main() {
 	misc.InitColoredLogs()
 
 	log.Printf("Loaded config file successfully: ")
-	config.PrintConfig()
+	Config.PrintConfig()
+
+	// Fire up distributed storage handler
+	// I am literally too lazy to set this as an env variable, I will just hard code this :b
+	dsh := ds.New("./data")
 
 	// Start up the API server
-	h := api.New("0.0.0.0", config.ServicePort)
+	h := api.New("0.0.0.0", Config.ServicePort, Config.Sync, dsh)
 	err = h.Run()
 	if err != nil {
 		return
