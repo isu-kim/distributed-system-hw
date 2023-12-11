@@ -99,7 +99,42 @@ func (h *Handler) localUpdateBackup(c *gin.Context) {
 
 // localDeleteBackup is for [DELETE] /backup/{0-9} API
 func (h *Handler) localDeleteBackup(c *gin.Context) {
+	log.Printf("%s [REQUEST][%s] %s {} ",
+		misc.ColoredReplica, c.Request.Method, c.Request.RequestURI)
 
+	// Read ID param from API
+	noteID := c.Param("id")
+
+	// ID was unable to be converted as an integer
+	id, err := strconv.Atoi(noteID)
+	if err != nil {
+		errResponse := common.NoteErrorResponse{
+			Msg:    "wrong URI, ID was invalid",
+			Method: c.Request.Method,
+			Uri:    c.Request.RequestURI,
+			Body:   "",
+		}
+
+		c.JSON(http.StatusBadRequest, errResponse)
+		log.Printf("%s [REPLY][%s] %s %v",
+			misc.ColoredReplica, c.Request.Method, c.Request.RequestURI, errResponse)
+		return
+	}
+
+	// Perform note delete
+	err = h.dsh.DeleteNote(id)
+	response := struct {
+		Msg string `json:"msg"`
+	}{}
+	if err != nil {
+		response.Msg = "FAILED"
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	} else {
+		response.Msg = "OK"
+		c.JSON(http.StatusOK, response)
+		return
+	}
 }
 
 // handleLocalWrite handles local write
@@ -401,4 +436,62 @@ func (h *Handler) performLocalWrite(c *gin.Context, note common.Note) (error, co
 	} else {
 		return errors.New("unknown method"), common.Note{}
 	}
+}
+
+// handleLocalDelete handles the delete operation
+func (h *Handler) handleLocalDelete(id int, primary string) error {
+	// Check if the note already had a primary before
+	oldPrimary, ok := h.primaryMap[id]
+	newPrimary := os.Getenv("REPLICA_ID")
+
+	// Just show user that we are moving primaries
+	if ok { // This means that there already was a primary before
+		log.Printf("%s [REQUEST] Move item to new primary %s->%s", misc.ColoredReplica, oldPrimary, newPrimary)
+	} else { // This means that this was a new note
+		log.Printf("%s [REQUEST] Move item to new primary %s", misc.ColoredReplica, newPrimary)
+	}
+
+	// First, delete the file from current replica
+	err := h.dsh.DeleteNote(id)
+	if err != nil {
+		log.Printf("Error deleting note %d: %v", id, err)
+		return err
+	}
+
+	// For all replicas, tell them to update as well
+	for _, replica := range h.replicas {
+		// If this was the primary, skip
+		if strings.Contains(replica, primary) {
+			continue
+		}
+
+		// Perform delete request
+		var response *http.Response
+		endpoint := fmt.Sprintf("http://%s/backup/%d", replica, id)
+
+		// Create a new request accordingly
+		request, err := http.NewRequest("DELETE", endpoint, nil)
+		if err != nil {
+			log.Printf("Error creating DELETE request to replica: %v\n", err)
+			return err
+		}
+		request.Header.Set("Content-Type", "application/json")
+
+		// Perform the request
+		client := http.Client{}
+		response, err = client.Do(request)
+		if err != nil {
+			log.Printf("Error making DELETE request to replica %s: %v\n", endpoint, err)
+			return err
+		}
+
+		// Just check if code was OK
+		if response.StatusCode == http.StatusOK {
+			continue
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }

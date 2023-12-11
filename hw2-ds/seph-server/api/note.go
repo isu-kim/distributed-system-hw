@@ -307,19 +307,38 @@ func (h *Handler) deleteNoteSpecific(c *gin.Context) {
 		return
 	}
 
-	// Perform remote delete
-	err = h.handleRemoteDelete(id)
-	response := struct {
-		Msg string `json:"msg"`
-	}{}
-	if err != nil {
-		response.Msg = "FAILED"
-		c.JSON(http.StatusInternalServerError, response)
-		return
-	} else {
-		response.Msg = "OK"
-		c.JSON(http.StatusOK, response)
-		return
+	// Now the distributed storage part!
+	switch h.syncMode {
+	case misc.SyncRemoteWrite:
+		// Perform remote delete
+		err = h.handleRemoteDelete(id)
+		response := struct {
+			Msg string `json:"msg"`
+		}{}
+		if err != nil {
+			response.Msg = "FAILED"
+			c.JSON(http.StatusInternalServerError, response)
+			return
+		} else {
+			response.Msg = "OK"
+			c.JSON(http.StatusOK, response)
+			return
+		}
+	case misc.SyncLocalWrite:
+		// Perform local delete
+		err = h.handleLocalDelete(id, os.Getenv("REPLICA_ID"))
+		response := struct {
+			Msg string `json:"msg"`
+		}{}
+		if err != nil {
+			response.Msg = "FAILED"
+			c.JSON(http.StatusInternalServerError, response)
+			return
+		} else {
+			response.Msg = "OK"
+			c.JSON(http.StatusOK, response)
+			return
+		}
 	}
 }
 
