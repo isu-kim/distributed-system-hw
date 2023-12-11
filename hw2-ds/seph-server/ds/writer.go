@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"seph/common"
@@ -63,4 +64,18 @@ func (h *Handler) UpdateNote(note common.Note) error {
 	}
 
 	return nil
+}
+
+// DumpNotes dump all notes into the target directory
+// This is meant for initialization process, not intended to be called afterwards
+// This function will not consider any cases which partially failed
+func (h *Handler) DumpNotes(notes []common.Note) {
+	// For all notes, iterate and create
+	for _, note := range notes {
+		err := h.UpdateNote(note)
+		if err != nil {
+			log.Printf("[Seph] Error dumping note %d: %v", note.Id, err)
+			continue
+		}
+	}
 }

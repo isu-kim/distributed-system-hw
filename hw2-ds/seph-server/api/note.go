@@ -13,19 +13,25 @@ import (
 )
 
 // getNoteAll is for [GET] /note API
-func getNoteAll(c *gin.Context) {
+func (h *Handler) getNoteAll(c *gin.Context) {
 	log.Printf("%s [REQUEST][%s] %s {}",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
+
+	// Read all notes from local storage, send them
+	notes := h.dsh.ReadAll()
+	c.JSON(http.StatusOK, notes)
+	log.Printf("%s [REPLY][%s] %s %v",
+		misc.ColoredClient, c.Request.Method, c.Request.RequestURI, notes)
 }
 
 // getNoteSpecific is for [GET] /note/{0-9} API
-func getNoteSpecific(c *gin.Context) {
+func (h *Handler) getNoteSpecific(c *gin.Context) {
 	log.Printf("%s [REQUEST][%s] %s {} ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
 }
 
 // postNote is for [POST] /note API
-func postNote(c *gin.Context) {
+func (h *Handler) postNote(c *gin.Context) {
 	msg := fmt.Sprintf("%s [REQUEST][%s] %s ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
 
@@ -51,7 +57,7 @@ func postNote(c *gin.Context) {
 }
 
 // putNoteSpecific is for [PUT] /note/{0-9} API
-func putNoteSpecific(c *gin.Context) {
+func (h *Handler) putNoteSpecific(c *gin.Context) {
 	msg := fmt.Sprintf("%s [REQUEST][%s] %s ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
 
@@ -77,7 +83,7 @@ func putNoteSpecific(c *gin.Context) {
 }
 
 // patchNoteSpecific is for [PATCH] /note/{0-9} API
-func patchNoteSpecific(c *gin.Context) {
+func (h *Handler) patchNoteSpecific(c *gin.Context) {
 	msg := fmt.Sprintf("%s [REQUEST][%s] %s ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
 
@@ -103,7 +109,7 @@ func patchNoteSpecific(c *gin.Context) {
 }
 
 // deleteNoteSpecific is for [DELETE] /note/{0-9} API
-func deleteNoteSpecific(c *gin.Context) {
+func (h *Handler) deleteNoteSpecific(c *gin.Context) {
 	log.Printf("%s [REQUEST][%s] %s {} ",
 		misc.ColoredClient, c.Request.Method, c.Request.RequestURI)
 }

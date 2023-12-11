@@ -28,6 +28,9 @@ if [ "$1" == "start" ]; then
         cat >> docker-compose.yml <<EOL
   replica-$i:
     image: isukim/seph:latest
+    environment:
+      - SEPH_DATA=/go/app/data
+$(if [ "$i" -eq "1" ]; then echo "      - IS_REPLICA_0=true"; fi)
     container_name: replica-$i
     volumes:
       - ./compose/config:/go/app/config/
@@ -44,10 +47,11 @@ EOL
 
     cat >> docker-compose.yml <<EOL
   seph-client:
-    image: ubuntu:latest
+    image: isukim/seph-client:latest
     container_name: seph-client
     command: tail -f /dev/null  # Keep the container running in the background
-
+    volumes:
+      - ./compose/config:/go/app/config/
 networks:
   seph:
     external:
@@ -62,7 +66,7 @@ elif [ "$1" == "destroy" ]; then
     echo "Seph cluster destroyed."
 elif [ "$1" == "client" ]; then
     echo "Starting Seph client."
-    docker exec -it seph-client ./seph-client
+    docker exec -it seph-client ./seph-client ./config/config.json
     echo "Unknown command. Usage: $0 start <no_replica> | destroy"
     exit 1
 fi

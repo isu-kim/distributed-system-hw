@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"seph/api"
-	"seph/ds"
 	"seph/misc"
 )
 
@@ -35,12 +34,8 @@ func main() {
 	log.Printf("Loaded config file successfully: ")
 	Config.PrintConfig()
 
-	// Fire up distributed storage handler
-	// I am literally too lazy to set this as an env variable, I will just hard code this :b
-	dsh := ds.New("./data")
-
 	// Start up the API server
-	h := api.New("0.0.0.0", Config.ServicePort, Config.Sync, dsh)
+	h := api.New("0.0.0.0", Config.ServicePort, Config.Sync, Config.Replicas)
 	err = h.Run()
 	if err != nil {
 		return

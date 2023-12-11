@@ -108,7 +108,7 @@ func perform(target string, action int) {
 
 // performGetNote will perform [GET] /note
 func performGetNote(target string) {
-	endpoint := fmt.Sprintf("%s/note", target)
+	endpoint := fmt.Sprintf("http://%s/note", target)
 	response, err := http.Get(endpoint)
 	if err != nil {
 		fmt.Printf("Error making GET request to %s: %v\n", endpoint, response)
@@ -151,7 +151,7 @@ func performGetNoteSpecific(target string) {
 		return
 	}
 
-	endpoint := fmt.Sprintf("%s/note/%d", target, userInput)
+	endpoint := fmt.Sprintf("http://%s/note/%d", target, userInput)
 	response, err := http.Get(endpoint)
 	if err != nil {
 		fmt.Printf("Error making GET request to %s: %v\n", endpoint, response)
@@ -217,7 +217,7 @@ func performPostNote(target string) {
 	}
 
 	// Perform POST request
-	endpoint := fmt.Sprintf("%s/note", target)
+	endpoint := fmt.Sprintf("http://%s/note", target)
 	response, err := http.Post(endpoint, "application/json", bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		fmt.Printf("Error making POST request to %s: %v\n", endpoint, err)
@@ -300,7 +300,7 @@ func performPutNote(target string) {
 	}
 
 	// Create a PUT request
-	endpoint := fmt.Sprintf("%s/note/%d", target, userInput)
+	endpoint := fmt.Sprintf("http://%s/note/%d", target, userInput)
 	request, err := http.NewRequest("PUT", endpoint, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		fmt.Printf("Error creating PUT request: %v\n", err)
@@ -392,7 +392,7 @@ func performPatchNote(target string) {
 	}
 
 	// Create a PUT request
-	endpoint := fmt.Sprintf("%s/note/%d", target, userInput)
+	endpoint := fmt.Sprintf("http://%s/note/%d", target, userInput)
 	request, err := http.NewRequest("PATCH", endpoint, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		fmt.Printf("Error creating PATCH request: %v\n", err)
@@ -444,7 +444,7 @@ func performDeleteNoteSpecific(target string) {
 		return
 	}
 
-	endpoint := fmt.Sprintf("%s/note/%d", target, userInput)
+	endpoint := fmt.Sprintf("http://%s/note/%d", target, userInput)
 	request, err := http.NewRequest("DELETE", endpoint, nil)
 	if err != nil {
 		fmt.Printf("Error creating DELETE request: %v\n", err)
