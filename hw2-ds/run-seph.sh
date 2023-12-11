@@ -7,6 +7,7 @@ fi
 
 # For Seph cluster start
 if [ "$1" == "start" ]; then
+    mkdir ./compose/config -p
     replicas="$2"
     echo "version: '3'" > docker-compose.yml
     echo "services:" >> docker-compose.yml

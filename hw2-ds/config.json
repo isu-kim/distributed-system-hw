@@ -1,5 +1,0 @@
-{
-  "servicePort": 5000,
-  "sync": "local-write",
-  "replicas": [ "ds-0:5000", "ds-1:5000", "ds-2:5000" ]
-}
