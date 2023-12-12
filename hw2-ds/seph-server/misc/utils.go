@@ -3,6 +3,7 @@ package misc
 import (
 	"fmt"
 	"github.com/fatih/color"
+	"strings"
 	"os"
 )
 
@@ -25,5 +26,5 @@ func InitColoredLogs() {
 
 // IsReplica0 represents if this replica instance was replicas[0]
 func IsReplica0() bool {
-	return len(os.Getenv("IS_REPLICA_0")) != 0
+	return strings.Contains(os.Getenv("IS_REPLICA_0"),"TRUE")
 }

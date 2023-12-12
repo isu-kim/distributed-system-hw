@@ -35,6 +35,15 @@ func (h *Handler) remoteForwardPrimary(c *gin.Context) {
 	}
 
 	// Perform remote write
+
+		// Assign new ID for the new note
+		err, newID := h.dsh.AssignNewID()
+		if err != nil {
+			log.Printf("Unable to assign new ID for note: %v", err)
+			return
+		}
+
+		reqNote.Id = newID
 	err, newNote := h.performRemoteWrite(c, reqNote)
 	if err != nil {
 		errResponse := common.NoteErrorResponse{
@@ -353,6 +362,7 @@ func (h *Handler) handleRemoteWrite(c *gin.Context, note common.Note) (error, co
 
 		// Update note and try creating the note
 		note.Id = newID
+		log.Println("NEWID: ", note.Id)
 		return h.performRemoteWrite(c, note)
 	} else { // If not, forward this request to the primary
 		log.Printf("%s [REQUEST] Forward request to primary", misc.ColoredReplica)

@@ -43,7 +43,7 @@ if [ "$1" == "start" ]; then
     environment:
       - SEPH_DATA=/go/app/data
       - REPLICA_ID=replica-$i
-$(if [ "$i" -eq "1" ]; then echo "      - IS_REPLICA_0=true"; fi)
+$(if [ "$i" -eq "1" ]; then echo "      - IS_REPLICA_0=\"TRUE\""; fi)
     container_name: replica-$i
     volumes:
       - ./compose/config:/go/app/config/
